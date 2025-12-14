@@ -472,6 +472,35 @@
                 };
                 reader.readAsText(file); input.value = '';
             },
+            loadFromUrl: async (url) => {
+  try {
+    const res = await fetch(url, { cache: "no-store" });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const loadedData = await res.json();
+
+    if (!loadedData.zones) throw new Error("올바르지 않은 데이터 형식");
+
+    loadedData.zones.forEach(z => {
+      if (!z.reservations) z.reservations = [];
+      z.cells.forEach(c => {
+        if(typeof c.isKey === 'undefined') c.isKey = false;
+        if(typeof c.customLabel === 'undefined') c.customLabel = '';
+        if(typeof c.phone === 'undefined') c.phone = '';
+      });
+    });
+
+    app.data = loadedData;
+    app.saveData();
+    app.currentZoneIdx = 0;
+    app.renderTabs(); 
+    app.renderGrid(); 
+    app.updateStats();
+    if (typeof resManager !== 'undefined') resManager.updateBadge();
+    console.log("✅ 기본 세이브 자동 로드 완료:", url);
+  } catch (err) {
+    console.warn("⚠️ 기본 세이브 자동 로드 실패:", err);
+  }
+},
             exportToExcel() {
                 if(!app.data.zones || app.data.zones.length === 0) return alert('데이터가 없습니다.');
                 const wb = XLSX.utils.book_new();
@@ -1182,7 +1211,9 @@
                 this.renderGrid();
             }
         };
+        dataManager.loadFromUrl("./savefile_GYM_Locker_V7_2025-12-13.json");
         app.init();
     </script>
 </body>
+
 </html>
