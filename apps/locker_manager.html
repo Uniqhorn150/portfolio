@@ -1,0 +1,1188 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GYM 락커 매니저 V7.7 (Search Ranking)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap');
+        body { font-family: 'Noto Sans KR', sans-serif; user-select: none; }
+        
+        .grid-cell {
+            aspect-ratio: 1/1;
+            transition: transform 0.1s, box-shadow 0.1s, opacity 0.2s;
+            position: relative;
+            box-sizing: border-box;
+            background-color: white; 
+            overflow: visible; 
+        }
+
+        /* 락커 등급(Tier) 스타일 */
+        .tier-common { border: 3px solid #cbd5e1; }     
+        .tier-uncommon { border: 3px solid #22c55e; }   
+        .tier-rare { border: 3px solid #3b82f6; }       
+        .tier-epic { border: 3px solid #a855f7; }       
+        .tier-legendary { 
+            border: 3px solid #f59e0b; 
+            background-color: #fffbeb;
+            animation: legendaryGlow 1.5s infinite alternate;
+            z-index: 5;
+        }
+        @keyframes legendaryGlow {
+            0% { box-shadow: 0 0 5px #fcd34d, inset 0 0 2px #fcd34d; border-color: #f59e0b; }
+            100% { box-shadow: 0 0 15px #b45309, inset 0 0 8px #fbbf24; border-color: #fbbf24; }
+        }
+
+        /* [NEW] 검색 위치 찾기 깜빡임 효과 (더 강렬하게) */
+        @keyframes blinkEffect {
+            0%, 100% { transform: scale(1); box-shadow: 0 0 0 rgba(239, 68, 68, 0); }
+            50% { transform: scale(1.2); box-shadow: 0 0 20px rgba(239, 68, 68, 0.8); z-index: 100; border-color: #ef4444; background-color: #fee2e2; }
+        }
+        .blink-target {
+            animation: blinkEffect 0.5s ease-in-out 3; /* 3번 깜빡임 */
+            border: 3px solid #ef4444 !important;
+        }
+
+        /* 상태 배경색 */
+        .bg-occupied { background-color: #eff6ff !important; }
+        .bg-warning { background-color: #fff7ed !important; } 
+        .bg-danger { background-color: #fef2f2 !important; } 
+        .bg-expired { background-color: #f1f5f9 !important; color: #94a3b8 !important; } 
+        .bg-broken { background-color: #e2e8f0 !important; background-image: repeating-linear-gradient(45deg, transparent, transparent 5px, #cbd5e1 5px, #cbd5e1 10px); }
+        .filtered-out { opacity: 0.05 !important; pointer-events: none; animation: none !important; }
+
+        .locker-content { display: flex; flex-direction: column; height: 100%; width: 100%; overflow: hidden; }
+        .locker-top { flex: 1; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 0.9em; border-bottom: 1px solid rgba(0,0,0,0.05); color: #334155; position: relative; }
+        .locker-bottom { flex: 1; display: flex; align-items: center; justify-content: center; font-family: monospace; font-weight: bold; font-size: 0.85em; color: #64748b; }
+        
+        /* 🚦 만료일 신호등 (Dots) */
+        .indicator-dot { position: absolute; top: 3px; right: 3px; width: 8px; height: 8px; border-radius: 50%; box-shadow: 0 1px 2px rgba(0,0,0,0.1); z-index: 2; }
+        .dot-safe { background-color: #3b82f6; border: 1px solid #2563eb; } 
+        .dot-warning { background-color: #f97316; border: 1px solid #ea580c; animation: pulse-slow 2s infinite; } 
+        .dot-danger { background-color: #ef4444; border: 1px solid #dc2626; animation: pulse-fast 1s infinite; } 
+        .dot-expired { background-color: #1e293b; border: 1px solid #0f172a; } 
+
+        @keyframes pulse-slow { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
+        @keyframes pulse-fast { 0% { transform: scale(1); } 50% { transform: scale(1.2); } 100% { transform: scale(1); } }
+
+        .move-ready {
+            transform: scale(1.1) !important;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05) !important;
+            z-index: 50 !important;
+            cursor: grabbing !important;
+            border-color: #6366f1 !important;
+        }
+
+        .selected { outline: 3px solid #ef4444 !important; z-index: 20; transform: scale(0.95); }
+        .edit-mode .grid-cell:hover { filter: brightness(0.95); cursor: pointer; }
+
+        .type-wall { background-color: #94a3b8; color: #f1f5f9; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: bold; border-radius: 4px; pointer-events: none;}
+        .type-entrance { background-color: #e2e8f0; border: 2px dashed #94a3b8; color: #475569; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: bold; border-radius: 4px; pointer-events: none;}
+        .type-facility { background-color: #e2e8f0; border-radius: 2px; pointer-events: none; }
+        .custom-label-container { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); white-space: nowrap; font-weight: 900; color: #475569; z-index: 10; text-shadow: 0 0 5px white; pointer-events: none; text-align: center; line-height: 1; }
+
+        .type-empty { visibility: hidden; pointer-events: none; }
+        .edit-mode .type-empty { border: 1px dashed #e2e8f0; background: #f8fafc; visibility: visible; pointer-events: auto; }
+        .edit-mode .type-wall, .edit-mode .type-entrance, .edit-mode .type-facility { pointer-events: auto; }
+
+        #selection-marquee { position: absolute; border: 1px solid #3b82f6; background-color: rgba(59, 130, 246, 0.2); z-index: 100; pointer-events: none; display: none; }
+
+        .zoom-slider { -webkit-appearance: none; width: 100px; height: 4px; border-radius: 2px; background: #e2e8f0; outline: none; }
+        .zoom-slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 12px; height: 12px; border-radius: 50%; background: #4f46e5; cursor: pointer; }
+
+        .filter-btn { transition: all 0.2s; opacity: 0.4; transform: scale(0.9); border: 2px solid transparent; }
+        .filter-btn.active { opacity: 1; transform: scale(1); box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .filter-common.active { border-color: #94a3b8; background-color: #f1f5f9; color: #475569; }
+        .filter-uncommon.active { border-color: #22c55e; background-color: #dcfce7; color: #15803d; }
+        .filter-rare.active { border-color: #3b82f6; background-color: #dbeafe; color: #1d4ed8; }
+        .filter-epic.active { border-color: #a855f7; background-color: #f3e8ff; color: #7e22ce; }
+        .filter-legendary.active { border-color: #f59e0b; background-color: #fef3c7; color: #b45309; }
+
+        .batch-opt-btn.active { background-color: #4f46e5 !important; border-color: #4338ca !important; color: white !important; }
+
+        .shortcut-hint { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); font-size: 10px; color: #94a3b8; border: 1px solid #e2e8f0; border-radius: 4px; padding: 2px 6px; background: #f8fafc; }
+        .res-tab { border-bottom: 2px solid transparent; color: #94a3b8; }
+        .res-tab.active { border-bottom: 2px solid #4f46e5; color: #4f46e5; font-weight: bold; }
+    </style>
+</head>
+<body class="bg-slate-50 h-screen flex flex-col text-slate-800 overflow-hidden">
+
+    <header class="bg-white border-b border-slate-200 shadow-sm z-30 flex-none h-16">
+        <div class="h-full px-4 flex items-center justify-between">
+            <div class="flex items-center gap-4">
+                <div class="flex items-center gap-2">
+                    <div class="bg-indigo-600 text-white p-1.5 rounded-lg"><i class="fa-solid fa-dumbbell"></i></div>
+                    <h1 class="font-bold text-lg hidden md:block">GYM 락커 매니저 V7.7</h1>
+                </div>
+                <div class="flex bg-slate-100 p-1 rounded-lg overflow-x-auto max-w-[400px]" id="zone-tabs"></div>
+            </div>
+            <div class="flex items-center gap-3">
+                <button onclick="syncManager.open()" class="flex items-center gap-2 bg-slate-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-slate-700 shadow-sm transition-colors"><i class="fa-solid fa-key"></i> 간편 비번 동기화</button>
+                <button onclick="cmsManager.open()" class="flex items-center gap-2 bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-indigo-700 shadow-sm transition-colors"><i class="fa-solid fa-file-import"></i> CMS 데이터 가져오기</button>
+                <div class="h-6 w-px bg-slate-200 mx-1"></div>
+                <button onclick="dataManager.exportToExcel()" class="flex items-center gap-2 bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-emerald-700 shadow-sm transition-colors"><i class="fa-solid fa-file-excel"></i> 엑셀 저장</button>
+                <div class="h-6 w-px bg-slate-200 mx-1"></div>
+                <div class="flex items-center gap-2 text-xs text-slate-400 hidden md:flex">
+                    <i class="fa-solid fa-magnifying-glass-minus"></i>
+                    <input type="range" min="20" max="120" value="60" class="zoom-slider" id="zoom-control" oninput="app.setZoom(this.value)">
+                    <i class="fa-solid fa-magnifying-glass-plus"></i>
+                </div>
+                <div class="flex items-center gap-2 cursor-pointer ml-3" onclick="app.toggleEditMode()">
+                    <span class="text-xs font-bold text-slate-500">편집 모드</span>
+                    <div id="edit-mode-btn" class="w-10 h-5 rounded-full bg-slate-200 relative transition-colors duration-200">
+                        <div class="w-3 h-3 bg-white rounded-full absolute top-1 left-1 transition-transform duration-200 shadow-sm"></div>
+                    </div>
+                </div>
+                <div class="h-6 w-px bg-slate-200 mx-2"></div>
+                <button onclick="dataManager.saveToFile()" class="text-slate-500 hover:text-indigo-600 tooltip" title="백업 파일 저장"><i class="fa-solid fa-floppy-disk"></i></button>
+                <button onclick="document.getElementById('fileInput').click()" class="text-slate-500 hover:text-indigo-600 tooltip" title="백업 불러오기"><i class="fa-solid fa-folder-open"></i></button>
+                <input type="file" id="fileInput" class="hidden" accept=".json" onchange="dataManager.loadFromFile(this)">
+            </div>
+        </div>
+    </header>
+
+    <div class="flex flex-1 overflow-hidden relative">
+        <aside class="w-80 bg-white border-r border-slate-200 z-20 flex flex-col shadow-lg transition-all duration-300">
+            <div class="p-4 border-b border-slate-100 bg-slate-50">
+                <div class="relative">
+                    <i class="fa-solid fa-search absolute left-3 top-3 text-slate-400"></i>
+                    <input type="text" id="search-input" placeholder="이름, 번호, 비번 (단축키 F)" class="w-full pl-9 pr-12 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none" onkeyup="app.handleSearchInput(event)">
+                    <div class="shortcut-hint">F</div>
+                </div>
+                <div id="search-results" class="mt-2 max-h-60 overflow-y-auto hidden bg-white border border-slate-200 rounded-lg shadow-xl text-sm absolute w-72 z-50 left-2"></div>
+            </div>
+            <div class="flex-1 overflow-y-auto p-4 flex flex-col">
+                <div class="flex justify-between items-end mb-4">
+                    <h2 class="font-bold text-xl text-slate-800" id="current-zone-name">구역 이름</h2>
+                    <span class="text-xs bg-slate-100 px-2 py-1 rounded text-slate-500" id="current-zone-size">0x0</span>
+                </div>
+                <div class="grid grid-cols-2 gap-2 mb-4">
+                    <div class="bg-emerald-50 p-3 rounded-lg border border-emerald-100"><div class="text-[10px] text-emerald-600 font-bold uppercase">Empty</div><div class="text-2xl font-black text-emerald-600" id="stat-empty">0</div></div>
+                    <div class="bg-blue-50 p-3 rounded-lg border border-blue-100"><div class="text-[10px] text-blue-600 font-bold uppercase">Occupied</div><div class="text-2xl font-black text-blue-600" id="stat-occupied">0</div></div>
+                    <div class="bg-orange-50 p-3 rounded-lg border border-orange-100"><div class="text-[10px] text-orange-600 font-bold uppercase">Warning</div><div class="text-2xl font-black text-orange-600" id="stat-warning">0</div></div>
+                    <div class="bg-red-50 p-3 rounded-lg border border-red-100"><div class="text-[10px] text-red-600 font-bold uppercase">Expired</div><div class="text-2xl font-black text-red-600" id="stat-expired">0</div></div>
+                </div>
+                
+                <div id="edit-panel" class="hidden animate-fade-in space-y-4 mb-4">
+                    <div class="bg-slate-800 text-white p-4 rounded-xl shadow-inner">
+                        <div class="flex justify-between items-center mb-3">
+                            <h3 class="text-xs font-bold text-slate-300 uppercase"><i class="fa-solid fa-wrench mr-1"></i> 도구 선택</h3>
+                            <button onclick="app.deleteSelected()" class="text-[10px] bg-red-600 hover:bg-red-500 px-2 py-1 rounded">선택 삭제</button>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2 mb-4">
+                            <button onclick="app.setTool('select')" class="tool-btn active p-2 rounded bg-indigo-600 border border-transparent text-left text-xs flex items-center gap-2" data-tool="select"><i class="fa-solid fa-arrow-pointer"></i> 선택/이동</button>
+                            <button onclick="app.setTool('locker')" class="tool-btn p-2 rounded bg-slate-700 border border-transparent hover:bg-slate-600 text-left text-xs flex items-center gap-2" data-tool="locker"><i class="fa-solid fa-square-pen"></i> 락커 생성</button>
+                            <button onclick="app.setTool('wall')" class="tool-btn p-2 rounded bg-slate-700 border border-transparent hover:bg-slate-600 text-left text-xs flex items-center gap-2" data-tool="wall"><i class="fa-solid fa-archway"></i> 벽/기둥</button>
+                            <button onclick="app.setTool('eraser')" class="tool-btn p-2 rounded bg-slate-700 border border-transparent hover:bg-slate-600 text-left text-xs flex items-center gap-2" data-tool="eraser"><i class="fa-solid fa-eraser"></i> 지우개</button>
+                        </div>
+                        
+                        <div id="select-options" class="p-3 bg-slate-700 rounded-lg mb-2 hidden">
+                             <!-- 선택 영역 정보 -->
+                             <div id="selection-stats" class="text-xs text-indigo-300 font-bold mb-2 text-center bg-slate-900/50 p-1 rounded border border-slate-600">
+                                 선택 없음
+                             </div>
+
+                             <div class="grid grid-cols-2 gap-2 mb-3">
+                                 <button onclick="app.createFacility()" class="bg-slate-600 hover:bg-slate-500 text-white text-[10px] py-2 rounded font-bold border border-slate-500"><i class="fa-solid fa-layer-group mr-1"></i> 시설물 생성</button>
+                                 <button onclick="app.batchCreateWalls()" class="bg-slate-600 hover:bg-slate-500 text-white text-[10px] py-2 rounded font-bold border border-slate-500"><i class="fa-solid fa-block-brick mr-1"></i> 벽/기둥 생성</button>
+                             </div>
+                             
+                             <div class="h-px bg-slate-600 my-2"></div>
+
+                             <div class="bg-slate-800 p-2 rounded border border-slate-600 mb-3">
+                                <label class="block text-[10px] text-slate-300 mb-1 font-bold">🎨 선택 영역 색상 변경</label>
+                                <div class="flex gap-1 mb-2">
+                                    <input type="color" id="color-picker" class="h-8 w-10 rounded cursor-pointer border-0 p-0 bg-transparent" title="색상 선택">
+                                    <button onclick="app.batchSetColor(document.getElementById('color-picker').value)" class="flex-1 bg-indigo-600 text-white text-[10px] rounded hover:bg-indigo-500 font-bold shadow-sm">적용</button>
+                                    <button onclick="app.batchSetColor(null)" class="flex-1 bg-slate-600 text-white text-[10px] rounded hover:bg-slate-500 border border-slate-500">초기화</button>
+                                </div>
+                                <div class="flex justify-between gap-1">
+                                     <button onclick="app.batchSetColor('#ef4444')" class="w-5 h-5 rounded-full bg-red-500 hover:scale-110 transition-transform"></button>
+                                     <button onclick="app.batchSetColor('#f97316')" class="w-5 h-5 rounded-full bg-orange-500 hover:scale-110 transition-transform"></button>
+                                     <button onclick="app.batchSetColor('#eab308')" class="w-5 h-5 rounded-full bg-yellow-500 hover:scale-110 transition-transform"></button>
+                                     <button onclick="app.batchSetColor('#22c55e')" class="w-5 h-5 rounded-full bg-green-500 hover:scale-110 transition-transform"></button>
+                                     <button onclick="app.batchSetColor('#3b82f6')" class="w-5 h-5 rounded-full bg-blue-500 hover:scale-110 transition-transform"></button>
+                                     <button onclick="app.batchSetColor('#a855f7')" class="w-5 h-5 rounded-full bg-purple-500 hover:scale-110 transition-transform"></button>
+                                     <button onclick="app.batchSetColor('#ec4899')" class="w-5 h-5 rounded-full bg-pink-500 hover:scale-110 transition-transform"></button>
+                                     <button onclick="app.batchSetColor('#64748b')" class="w-5 h-5 rounded-full bg-slate-500 hover:scale-110 transition-transform"></button>
+                                </div>
+                             </div>
+                             
+                             <div class="h-px bg-slate-600 my-2"></div>
+                             
+                             <div class="bg-slate-800 p-2 rounded border border-slate-600 mb-3">
+                                <label class="block text-[10px] text-indigo-300 mb-2 font-bold"><i class="fa-solid fa-arrow-down-1-9 mr-1"></i> 락커 순서 채우기</label>
+                                <div class="flex gap-2 items-center mb-2">
+                                    <span class="text-[10px] text-slate-400 w-8">시작</span>
+                                    <input type="number" id="batch-start-num" value="1" class="flex-1 bg-slate-900 border border-slate-500 rounded px-2 py-1 text-sm text-center text-white font-mono">
+                                </div>
+                                <div class="mb-2">
+                                    <div class="text-[10px] text-slate-400 mb-1">1. 시작 위치 (코너)</div>
+                                    <div class="grid grid-cols-2 gap-1 h-16">
+                                        <button onclick="app.setBatchOption('corner', 'tl')" id="btn-corner-tl" class="batch-opt-btn active bg-slate-600 border border-slate-500 rounded hover:bg-indigo-600 text-white relative"><div class="absolute top-1 left-1 w-2 h-2 bg-yellow-400 rounded-full"></div> ↖</button>
+                                        <button onclick="app.setBatchOption('corner', 'tr')" id="btn-corner-tr" class="batch-opt-btn bg-slate-600 border border-slate-500 rounded hover:bg-indigo-600 text-white relative"><div class="absolute top-1 right-1 w-2 h-2 bg-yellow-400 rounded-full"></div> ↗</button>
+                                        <button onclick="app.setBatchOption('corner', 'bl')" id="btn-corner-bl" class="batch-opt-btn bg-slate-600 border border-slate-500 rounded hover:bg-indigo-600 text-white relative"><div class="absolute bottom-1 left-1 w-2 h-2 bg-yellow-400 rounded-full"></div> ↙</button>
+                                        <button onclick="app.setBatchOption('corner', 'br')" id="btn-corner-br" class="batch-opt-btn bg-slate-600 border border-slate-500 rounded hover:bg-indigo-600 text-white relative"><div class="absolute bottom-1 right-1 w-2 h-2 bg-yellow-400 rounded-full"></div> ↘</button>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <div class="text-[10px] text-slate-400 mb-1">2. 채우기 방향</div>
+                                    <div class="grid grid-cols-2 gap-1">
+                                        <button onclick="app.setBatchOption('axis', 'row')" id="btn-axis-row" class="batch-opt-btn active bg-slate-600 border border-slate-500 rounded hover:bg-indigo-600 text-white py-1 text-[10px]"><i class="fa-solid fa-arrows-left-right mr-1"></i> 가로 우선</button>
+                                        <button onclick="app.setBatchOption('axis', 'col')" id="btn-axis-col" class="batch-opt-btn bg-slate-600 border border-slate-500 rounded hover:bg-indigo-600 text-white py-1 text-[10px]"><i class="fa-solid fa-arrows-up-down mr-1"></i> 세로 우선</button>
+                                    </div>
+                                </div>
+                                <button onclick="app.executeBatchCreate()" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white text-xs py-2 rounded font-bold shadow-md border-b-2 border-indigo-800 active:border-b-0 active:translate-y-px">🚀 락커 생성 실행</button>
+                             </div>
+
+                             <div class="grid grid-cols-2 gap-2 mb-3">
+                                 <button onclick="app.batchSetStatus('occupied')" class="bg-blue-600 hover:bg-blue-500 text-white text-[10px] py-1 rounded">사용중 처리</button>
+                                 <button onclick="app.batchSetStatus('empty')" class="bg-slate-600 hover:bg-slate-500 text-white text-[10px] py-1 rounded">비우기</button>
+                             </div>
+                             <button onclick="app.batchToggleKey()" class="w-full bg-amber-600 hover:bg-amber-500 text-white text-[10px] py-1 rounded mb-3"><i class="fa-solid fa-key mr-1"></i> 열쇠(Key) 사용 모드</button>
+                             <div class="flex gap-1 justify-between">
+                                <button onclick="app.batchSetTier('common')" class="w-6 h-6 bg-slate-100 border-2 border-slate-300 rounded hover:opacity-80" title="일반"></button>
+                                <button onclick="app.batchSetTier('uncommon')" class="w-6 h-6 bg-emerald-50 border-2 border-emerald-500 rounded hover:opacity-80" title="고급"></button>
+                                <button onclick="app.batchSetTier('rare')" class="w-6 h-6 bg-blue-50 border-2 border-blue-500 rounded hover:opacity-80" title="희귀"></button>
+                                <button onclick="app.batchSetTier('epic')" class="w-6 h-6 bg-purple-50 border-2 border-purple-500 rounded hover:opacity-80" title="영웅"></button>
+                                <button onclick="app.batchSetTier('legendary')" class="w-6 h-6 bg-amber-50 border-2 border-amber-500 rounded hover:opacity-80" title="전설"></button>
+                            </div>
+                        </div>
+
+                        <div id="locker-options" class="hidden p-3 bg-slate-700 rounded-lg mb-2">
+                            <label class="block text-[10px] text-slate-400 mb-1">시작 번호</label>
+                            <input type="number" id="auto-start-num" value="101" class="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm text-center text-white">
+                        </div>
+                        <div class="p-3 border-t border-slate-600 mt-2">
+                            <label class="block text-[10px] text-slate-400 mb-1">맵 크기 조절 (행 x 열)</label>
+                            <div class="flex gap-1">
+                                <input type="number" id="map-rows" class="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm text-center text-white" placeholder="행">
+                                <span class="text-slate-500 flex items-center">x</span>
+                                <input type="number" id="map-cols" class="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm text-center text-white" placeholder="열">
+                                <button onclick="app.resizeMap()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-2 rounded text-xs">적용</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="info-panel" class="mb-4 p-4 bg-yellow-50 rounded-lg border border-yellow-100 text-xs text-yellow-800"><i class="fa-solid fa-circle-info mr-1"></i><span id="guide-msg">락커를 클릭하여 정보를 확인하세요.</span></div>
+                <button onclick="resManager.open()" class="w-full mb-4 py-3 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-lg font-bold text-sm hover:bg-indigo-100 hover:shadow-md transition-all flex items-center justify-center relative"><i class="fa-regular fa-calendar-check mr-2"></i> 예약 대기자 관리<span id="res-badge" class="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] w-5 h-5 rounded-full flex items-center justify-center shadow-sm hidden">0</span></button>
+                <div class="mt-auto"></div>
+                <div class="mt-4 pt-4 border-t border-slate-100">
+                    <div class="flex justify-between items-center mb-2 px-1"><span class="text-xs font-bold text-slate-500">등급 필터</span></div>
+                    <div class="flex justify-between gap-1">
+                        <button onclick="app.toggleTier('common')" id="filter-common" class="filter-btn filter-common active flex-1 h-8 rounded-lg text-[10px] font-bold">일반</button>
+                        <button onclick="app.toggleTier('uncommon')" id="filter-uncommon" class="filter-btn filter-uncommon active flex-1 h-8 rounded-lg text-[10px] font-bold">고급</button>
+                        <button onclick="app.toggleTier('rare')" id="filter-rare" class="filter-btn filter-rare active flex-1 h-8 rounded-lg text-[10px] font-bold">희귀</button>
+                        <button onclick="app.toggleTier('epic')" id="filter-epic" class="filter-btn filter-epic active flex-1 h-8 rounded-lg text-[10px] font-bold">영웅</button>
+                        <button onclick="app.toggleTier('legendary')" id="filter-legendary" class="filter-btn filter-legendary active flex-1 h-8 rounded-lg text-[10px] font-bold">전설</button>
+                    </div>
+                </div>
+            </div>
+            <button onclick="app.addNewZone()" class="p-3 text-center text-sm font-bold text-indigo-600 border-t border-slate-200 hover:bg-indigo-50 transition-colors"><i class="fa-solid fa-plus mr-1"></i> 새 구역 추가</button>
+        </aside>
+        <main class="flex-1 bg-slate-200 overflow-auto relative p-10 select-none" id="main-canvas">
+            <div id="grid-container" class="bg-white shadow-2xl mx-auto origin-top-left transition-transform duration-100 select-none overflow-hidden" onmousedown="app.handleMouseDown(event)">
+            </div>
+        </main>
+    </div>
+
+    <!-- 모달 등 -->
+    <div id="locker-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center backdrop-blur-sm" onclick="if(event.target === this) app.closeModal()">
+        <div class="bg-white rounded-xl shadow-2xl w-96 overflow-hidden" onclick="event.stopPropagation()">
+            <div class="bg-slate-800 p-4 flex justify-between items-center text-white"><h3 class="font-bold text-lg"><span id="modal-title">락커 정보</span></h3><button onclick="app.closeModal()" class="text-white/70 hover:text-white"><i class="fa-solid fa-xmark text-xl"></i></button></div>
+            <form onsubmit="app.saveLockerData(event)" class="p-5 space-y-4">
+                <input type="hidden" id="edit-idx">
+                <div class="grid grid-cols-2 gap-4">
+                    <div><label class="block text-xs font-bold text-slate-500 mb-1">락커 번호</label><input type="text" id="edit-number" class="w-full p-2 border border-slate-300 rounded font-bold text-center bg-slate-50"></div>
+                    <div><label class="block text-xs font-bold text-slate-500 mb-1">등급</label><select id="edit-tier" class="w-full p-2 border border-slate-300 rounded text-xs font-bold"><option value="common">⬜ 일반</option><option value="uncommon">🟩 고급</option><option value="rare">🟦 희귀</option><option value="epic">🟪 영웅</option><option value="legendary">🟧 전설</option></select></div>
+                </div>
+                <div class="flex items-center justify-between border p-2 rounded bg-amber-50 border-amber-200"><span class="text-xs font-bold text-amber-800"><i class="fa-solid fa-key mr-1"></i> 열쇠(Key) 사용 락커</span><input type="checkbox" id="edit-iskey" class="w-4 h-4 text-amber-600 rounded focus:ring-amber-500"></div>
+                <div><label class="block text-xs font-bold text-slate-500 mb-1">상태</label><select id="edit-status" class="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500 font-bold bg-white"><option value="auto">🤖 자동</option><option value="occupied">🔵 사용 중</option><option value="empty">⚪ 빈 락커</option><option value="broken">🔧 수리 중</option></select></div>
+                <div><label class="block text-xs font-bold text-slate-500 mb-1">비밀번호</label><input type="text" id="edit-password" class="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500 font-mono text-center tracking-widest text-lg" placeholder="0000"></div>
+                <div><label class="block text-xs font-bold text-slate-500 mb-1">회원 이름</label><input type="text" id="edit-name" class="w-full p-2 border border-slate-300 rounded focus:ring-2 focus:ring-indigo-500 font-bold text-lg" placeholder="이름 입력"></div>
+                <div><label class="block text-xs font-bold text-slate-500 mb-1">연락처</label><input type="text" id="edit-phone" class="w-full p-2 border border-slate-300 rounded text-sm" placeholder="010-XXXX-XXXX"></div>
+                <div class="bg-slate-50 p-3 rounded border border-slate-200">
+                    <div class="flex justify-between mb-2"><label class="text-xs font-bold text-slate-500">이용 기간</label><span id="d-day-badge" class="text-xs font-bold text-slate-400">-</span></div>
+                    <div class="flex gap-2 items-center mb-2"><input type="date" id="edit-start" class="w-full p-1 border rounded text-xs"><span>~</span><input type="date" id="edit-end" class="w-full p-1 border rounded text-xs"></div>
+                    <div class="flex gap-1"><button type="button" onclick="app.addMonths(1)" class="flex-1 py-1 bg-white border rounded text-xs hover:bg-slate-100">+1개월</button><button type="button" onclick="app.addMonths(3)" class="flex-1 py-1 bg-white border rounded text-xs hover:bg-slate-100">+3개월</button><button type="button" onclick="app.addMonths(12)" class="flex-1 py-1 bg-white border rounded text-xs hover:bg-slate-100">+1년</button></div>
+                </div>
+                <div class="flex justify-between pt-2"><button type="button" onclick="app.clearLocker()" class="px-4 py-2 text-red-500 font-bold text-sm hover:bg-red-50 rounded">비우기</button><div class="flex gap-2"><button type="button" onclick="app.closeModal()" class="px-4 py-2 text-slate-500 font-bold text-sm hover:bg-slate-100 rounded">취소</button><button type="submit" class="px-6 py-2 bg-indigo-600 text-white font-bold text-sm rounded hover:bg-indigo-700 shadow-md">저장</button></div></div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 비번 동기화 및 CMS 모달 등 (생략: 기존 코드 동일) -->
+    <div id="res-modal" class="fixed inset-0 bg-black/50 z-[60] hidden flex items-center justify-center backdrop-blur-sm" onclick="if(event.target === this) resManager.close()">
+        <div class="bg-white rounded-xl shadow-2xl w-[600px] h-[700px] flex flex-col overflow-hidden" onclick="event.stopPropagation()">
+            <div class="bg-indigo-600 p-4 flex justify-between items-center text-white flex-none"><h3 class="font-bold text-lg"><i class="fa-solid fa-list-check mr-2"></i>예약 대기자 관리</h3><button onclick="resManager.close()" class="text-white/70 hover:text-white"><i class="fa-solid fa-xmark text-xl"></i></button></div>
+            <div class="flex border-b border-slate-200 flex-none bg-slate-50"><button onclick="resManager.switchTab('pending')" id="tab-pending" class="res-tab flex-1 py-3 text-sm text-center active">대기중 (<span id="count-pending">0</span>)</button><button onclick="resManager.switchTab('completed')" id="tab-completed" class="res-tab flex-1 py-3 text-center text-sm">배정 완료됨 (<span id="count-completed">0</span>)</button></div>
+            <div class="p-4 bg-slate-50 border-b border-slate-200 flex-none" id="res-input-area">
+                <form onsubmit="resManager.add(event)" class="space-y-2">
+                    <div class="grid grid-cols-3 gap-2"><input type="date" id="res-date" required class="p-2 border rounded text-xs"><input type="text" id="res-name" placeholder="이름" required class="p-2 border rounded text-xs"><input type="text" id="res-phone" placeholder="번호(뒤4자리)" required maxlength="4" class="p-2 border rounded text-xs"></div>
+                    <div class="grid grid-cols-2 gap-2"><input type="text" id="res-staff" placeholder="담당자" class="p-2 border rounded text-xs"><input type="text" id="res-tm" placeholder="TM날짜" class="p-2 border rounded text-xs"></div>
+                    <div class="flex gap-2"><input type="text" id="res-note" placeholder="비고" class="flex-1 p-2 border rounded text-xs"><button type="submit" class="px-4 bg-indigo-600 text-white rounded text-xs font-bold hover:bg-indigo-700">추가 (맨 위로)</button></div>
+                </form>
+            </div>
+            <div class="flex-1 overflow-y-auto p-4 bg-white" id="res-list"></div>
+        </div>
+    </div>
+
+    <div id="sync-modal" class="fixed inset-0 bg-black/50 z-[70] hidden flex items-center justify-center backdrop-blur-sm" onclick="if(event.target === this) syncManager.close()">
+        <div class="bg-white rounded-xl shadow-2xl w-[600px] flex flex-col overflow-hidden p-6" onclick="event.stopPropagation()">
+            <h3 class="font-bold text-xl mb-4 text-slate-800 flex items-center gap-2"><i class="fa-solid fa-key text-slate-600"></i> 간편 비번 동기화</h3>
+            
+            <div class="bg-yellow-50 border border-yellow-100 rounded-lg p-3 text-xs text-yellow-800 mb-4 leading-relaxed">
+                <p class="font-bold mb-1">💡 똑똑한 붙여넣기 모드</p>
+                <p>엑셀에서 복사한 데이터를 붙여넣으면 자동으로 아래 두 가지 패턴을 인식합니다:</p>
+                <ul class="list-disc pl-4 mt-1">
+                    <li><b>가로 패턴:</b> [번호] [비번] (옆 칸에 비번)</li>
+                    <li><b>세로 패턴:</b> [번호]<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[비번] (바로 아래 칸에 비번)</li>
+                </ul>
+                <p class="mt-2 text-red-500 font-bold">⚠️ 주의: 비밀번호가 4자리 숫자가 아니거나 공란이면 무시합니다.</p>
+            </div>
+
+            <textarea id="sync-input" class="w-full h-64 border border-slate-300 rounded-lg p-3 text-xs font-mono mb-4 focus:ring-2 focus:ring-slate-500 outline-none whitespace-pre" placeholder="엑셀 데이터를 여기에 붙여넣으세요..."></textarea>
+            
+            <div class="flex gap-2 justify-end">
+                <button onclick="syncManager.close()" class="px-4 py-2 text-slate-500 hover:bg-slate-100 rounded text-sm">취소</button>
+                <button onclick="syncManager.apply()" class="px-6 py-2 bg-slate-600 text-white font-bold rounded text-sm hover:bg-slate-700 shadow-md">동기화 실행</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="cms-modal" class="fixed inset-0 bg-black/50 z-[70] hidden flex items-center justify-center backdrop-blur-sm" onclick="if(event.target === this) cmsManager.close()">
+        <div class="bg-white rounded-xl shadow-2xl w-[600px] flex flex-col overflow-hidden p-6" onclick="event.stopPropagation()">
+            <h3 class="font-bold text-xl mb-4 text-slate-800 flex items-center gap-2"><i class="fa-solid fa-file-import text-indigo-600"></i> CMS 엑셀 데이터 가져오기</h3>
+            <div class="bg-blue-50 border border-blue-100 rounded-lg p-4 text-xs text-blue-800 mb-4 leading-relaxed"><p class="font-bold mb-2 text-base">💡 사용 방법</p><ol class="list-decimal pl-4 space-y-1"><li>CMS에서 다운로드 받은 엑셀 파일을 엽니다.</li><li><span class="font-bold">제목줄(회원명, 번호 등)을 포함하여</span> 데이터 전체를 드래그해서 복사(Ctrl+C) 하세요.</li><li>아래 칸에 붙여넣기(Ctrl+V) 하고 <b>[데이터 적용]</b>을 누르세요.</li><li>프로그램이 알아서 <b>번호, 이름, 시작일, 종료일, 휴대폰번호</b>를 찾아서 매칭합니다.</li></ol></div>
+            <textarea id="cms-input" class="w-full h-64 border border-slate-300 rounded-lg p-3 text-xs font-mono mb-4 focus:ring-2 focus:ring-indigo-500 outline-none whitespace-pre" placeholder="엑셀 데이터를 여기에 붙여넣으세요..."></textarea>
+            <div class="flex gap-2 justify-end"><button onclick="cmsManager.close()" class="px-4 py-2 text-slate-500 hover:bg-slate-100 rounded text-sm">취소</button><button onclick="cmsManager.parseAndApply()" class="px-6 py-2 bg-indigo-600 text-white font-bold rounded text-sm hover:bg-indigo-700 shadow-md">데이터 적용</button></div>
+        </div>
+    </div>
+
+    <script>
+        const cmsManager = {
+            open() { document.getElementById('cms-modal').classList.remove('hidden'); document.getElementById('cms-input').value = ''; document.getElementById('cms-input').focus(); },
+            close() { document.getElementById('cms-modal').classList.add('hidden'); },
+            parseAndApply() {
+                const rawText = document.getElementById('cms-input').value.trim();
+                if (!rawText) return alert("데이터를 붙여넣어주세요.");
+                const rows = rawText.split('\n').map(row => row.split('\t'));
+                if (rows.length < 2) return alert("데이터 형식이 올바르지 않습니다.");
+                const header = rows[0];
+                const colIdx = { name: header.findIndex(h => h.includes('회원명') || h.includes('이름')), number: header.findIndex(h => h === '번호' || h === '라카번호'), start: header.findIndex(h => h.includes('시작일')), end: header.findIndex(h => h.includes('종료일')), phone: header.findIndex(h => h.includes('휴대폰') || h.includes('전화')) };
+                if (colIdx.number === -1) colIdx.number = header.findIndex(h => h.includes('번호') && !h.includes('카드') && !h.includes('휴대폰'));
+                if (colIdx.number === -1) return alert("'번호' 열을 찾을 수 없습니다. 제목줄을 포함해서 복사했는지 확인해주세요.");
+                let updatedCount = 0; let missingLockers = [];
+                const mapLockerNumbers = new Set();
+                app.data.zones.forEach(zone => { zone.cells.forEach(cell => { if (cell.type === 'locker') mapLockerNumbers.add(String(cell.number)); }); });
+                rows.slice(1).forEach(row => {
+                    const lockerNum = String(row[colIdx.number]).trim();
+                    if (!lockerNum) return;
+                    if (mapLockerNumbers.has(lockerNum)) {
+                        app.data.zones.forEach(zone => {
+                            zone.cells.forEach(cell => {
+                                if (cell.type === 'locker' && String(cell.number) === lockerNum) {
+                                    if (colIdx.name !== -1) cell.name = row[colIdx.name];
+                                    if (colIdx.start !== -1) cell.start = row[colIdx.start];
+                                    if (colIdx.end !== -1) cell.end = row[colIdx.end];
+                                    if (colIdx.phone !== -1) cell.phone = row[colIdx.phone];
+                                    cell.statusOverride = 'auto';
+                                }
+                            });
+                        });
+                        updatedCount++;
+                    } else { missingLockers.push(lockerNum); }
+                });
+                app.saveData(); app.renderGrid(); this.close();
+                let message = `✅ 총 ${updatedCount}개의 락커 정보가 성공적으로 업데이트 되었습니다.`;
+                if (missingLockers.length > 0) { const displayMissing = missingLockers.slice(0, 20).join(', '); const moreCount = missingLockers.length > 20 ? ` 외 ${missingLockers.length - 20}건` : ''; message += `\n\n⚠️ 주의: 엑셀에는 있지만 맵에 없는 락커가 ${missingLockers.length}개 발견되었습니다.\n\n[미등록 번호 목록]\n${displayMissing}${moreCount}`; }
+                alert(message);
+            }
+        };
+
+        const syncManager = {
+            open() { document.getElementById('sync-modal').classList.remove('hidden'); document.getElementById('sync-input').focus(); },
+            close() { document.getElementById('sync-modal').classList.add('hidden'); },
+            apply() {
+                const text = document.getElementById('sync-input').value;
+                if (!text.trim()) return alert('데이터가 없습니다.');
+                const rows = text.split('\n').map(row => row.split('\t'));
+                const zone = app.data.zones[app.currentZoneIdx];
+                let count = 0;
+                const mapLockerMap = new Map(); 
+                zone.cells.forEach(cell => { if (cell.type === 'locker') mapLockerMap.set(String(cell.number), cell); });
+                for (let r = 0; r < rows.length; r++) {
+                    for (let c = 0; c < rows[r].length; c++) {
+                        const val = String(rows[r][c]).trim();
+                        if (!val) continue;
+                        if (mapLockerMap.has(val)) {
+                            const cell = mapLockerMap.get(val);
+                            let password = null;
+                            if (r + 1 < rows.length) { const belowVal = String(rows[r+1][c]).trim(); if (/^\d{4}$/.test(belowVal)) { password = belowVal; } }
+                            if (!password && c + 1 < rows[r].length) { const rightVal = String(rows[r][c+1]).trim(); if (/^\d{4}$/.test(rightVal)) { password = rightVal; } }
+                            if (password) { cell.password = password; count++; }
+                        }
+                    }
+                }
+                if (count > 0) { alert(`✅ ${count}개의 락커 비밀번호가 업데이트 되었습니다!`); app.saveData(); app.renderGrid(); this.close(); } 
+                else { alert('비밀번호를 업데이트할 수 없습니다.\n(락커 번호를 못 찾았거나, 비밀번호 형식이 4자리 숫자가 아닙니다.)'); }
+            }
+        };
+
+        const resManager = {
+            currentTab: 'pending',
+            open() { document.getElementById('res-modal').classList.remove('hidden'); document.getElementById('res-date').valueAsDate = new Date(); this.renderList(); },
+            close() { document.getElementById('res-modal').classList.add('hidden'); },
+            switchTab(tab) { this.currentTab = tab; document.querySelectorAll('.res-tab').forEach(t => t.classList.remove('active')); document.getElementById(`tab-${tab}`).classList.add('active'); const form = document.getElementById('res-input-area'); if(tab === 'completed') form.classList.add('hidden'); else form.classList.remove('hidden'); this.renderList(); },
+            add(e) { e.preventDefault(); const zone = app.data.zones[app.currentZoneIdx]; if (!zone.reservations) zone.reservations = []; const newRes = { id: Date.now(), date: document.getElementById('res-date').value, name: document.getElementById('res-name').value, phone: document.getElementById('res-phone').value, staff: document.getElementById('res-staff').value, tm: document.getElementById('res-tm').value, note: document.getElementById('res-note').value, status: 'pending', assignedLocker: '' }; zone.reservations.unshift(newRes); app.saveData(); this.renderList(); e.target.reset(); document.getElementById('res-date').valueAsDate = new Date(); },
+            complete(id) { const lockerNum = prompt("배정한 락커 번호를 입력하세요 (기록용):"); if (lockerNum === null) return; const zone = app.data.zones[app.currentZoneIdx]; const res = zone.reservations.find(r => r.id === id); if (res) { res.status = 'completed'; res.assignedLocker = lockerNum; app.saveData(); this.renderList(); } },
+            revert(id) { if(!confirm("되돌리시겠습니까?")) return; const zone = app.data.zones[app.currentZoneIdx]; const res = zone.reservations.find(r => r.id === id); if (res) { res.status = 'pending'; res.assignedLocker = ''; app.saveData(); this.renderList(); } },
+            remove(id) { if(!confirm("삭제하시겠습니까?")) return; const zone = app.data.zones[app.currentZoneIdx]; zone.reservations = zone.reservations.filter(r => r.id !== id); app.saveData(); this.renderList(); },
+            renderList() { const zone = app.data.zones[app.currentZoneIdx]; if (!zone.reservations) zone.reservations = []; const listEl = document.getElementById('res-list'); listEl.innerHTML = ''; const pendingCount = zone.reservations.filter(r => r.status === 'pending').length; const completedCount = zone.reservations.filter(r => r.status === 'completed').length; document.getElementById('count-pending').innerText = pendingCount; document.getElementById('count-completed').innerText = completedCount; this.updateBadge(); const filtered = zone.reservations.filter(r => r.status === this.currentTab).sort((a,b) => b.id - a.id); if (filtered.length === 0) { listEl.innerHTML = '<div class="text-center text-slate-400 py-10">데이터가 없습니다.</div>'; return; } filtered.forEach(r => { const item = document.createElement('div'); item.className = 'bg-slate-50 border border-slate-200 rounded p-3 mb-2 text-sm hover:shadow-sm transition-shadow'; let actionBtn = ''; if (this.currentTab === 'pending') { actionBtn = `<button onclick="resManager.complete(${r.id})" class="bg-indigo-600 text-white px-3 py-1 rounded text-xs hover:bg-indigo-700">배정완료</button>`; } else { actionBtn = `<span class="text-emerald-600 font-bold mr-2 text-xs">✔ ${r.assignedLocker ? r.assignedLocker+'번 ' : ''}배정됨</span><button onclick="resManager.revert(${r.id})" class="bg-slate-400 text-white px-2 py-1 rounded text-xs hover:bg-slate-500">취소</button>`; } item.innerHTML = `<div class="flex justify-between items-start mb-2"><div><span class="font-bold text-slate-700 text-base">${r.name}</span><span class="text-slate-500 text-xs ml-1">(${r.phone})</span><span class="bg-white border border-slate-200 text-slate-500 text-[10px] px-1 rounded ml-2">${r.date} 접수</span></div><div class="flex gap-2">${actionBtn}<button onclick="resManager.remove(${r.id})" class="text-red-300 hover:text-red-500"><i class="fa-solid fa-trash"></i></button></div></div><div class="grid grid-cols-2 gap-2 text-xs text-slate-600 bg-white p-2 rounded border border-slate-100"><div><span class="text-slate-400">담당:</span> ${r.staff || '-'}</div><div><span class="text-slate-400">TM:</span> ${r.tm || '-'}</div><div class="col-span-2"><span class="text-slate-400">비고:</span> ${r.note || '-'}</div></div>`; listEl.appendChild(item); }); },
+            updateBadge() { const zone = app.data.zones[app.currentZoneIdx]; if(!zone || !zone.reservations) return; const count = zone.reservations.filter(r => r.status === 'pending').length; const badge = document.getElementById('res-badge'); if (count > 0) { badge.innerText = count; badge.classList.remove('hidden'); } else { badge.classList.add('hidden'); } }
+        };
+
+        const dataManager = {
+            saveToFile() { const str = JSON.stringify(app.data); const uri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(str); const link = document.createElement('a'); link.href = uri; link.download = `GYM_Locker_V7_${new Date().toISOString().slice(0,10)}.json`; link.click(); },
+            loadFromFile(input) {
+                const file = input.files[0]; if(!file) return;
+                const reader = new FileReader();
+                reader.onload = (e) => { 
+                    try { 
+                        const loadedData = JSON.parse(e.target.result); 
+                        if (!loadedData.zones) throw new Error("올바르지 않은 데이터 형식");
+                        loadedData.zones.forEach(z => {
+                            if (!z.reservations) z.reservations = [];
+                            z.cells.forEach(c => {
+                                if(typeof c.isKey === 'undefined') c.isKey = false;
+                                if(typeof c.customLabel === 'undefined') c.customLabel = '';
+                                if(typeof c.phone === 'undefined') c.phone = '';
+                            });
+                        });
+                        app.data = loadedData;
+                        app.saveData(); 
+                        app.currentZoneIdx = 0; app.renderTabs(); app.renderGrid(); app.updateStats();
+                        if (typeof resManager !== 'undefined') resManager.updateBadge();
+                        alert("데이터 로드 완료!"); 
+                    } catch(err) { console.error(err); alert("파일 오류! 올바른 백업 파일인지 확인해주세요."); } 
+                };
+                reader.readAsText(file); input.value = '';
+            },
+            exportToExcel() {
+                if(!app.data.zones || app.data.zones.length === 0) return alert('데이터가 없습니다.');
+                const wb = XLSX.utils.book_new();
+                app.data.zones.forEach(zone => {
+                    const gridData = [];
+                    for (let r = 0; r < zone.rows; r++) {
+                        const rowData = [];
+                        for (let c = 0; c < zone.cols; c++) {
+                            const idx = r * zone.cols + c;
+                            const cell = zone.cells[idx];
+                            let cellText = '';
+                            if (cell.type === 'locker') { cellText = `${cell.number || ''}\n${cell.name || ''}\n${cell.end || ''}`; } 
+                            else if (cell.type === 'facility') { cellText = cell.customLabel || '시설물'; } 
+                            else if (cell.type === 'wall') { cellText = '벽'; } 
+                            else if (cell.type === 'entrance') { cellText = '입구'; }
+                            rowData.push(cellText);
+                        }
+                        gridData.push(rowData);
+                    }
+                    const ws = XLSX.utils.aoa_to_sheet(gridData);
+                    XLSX.utils.book_append_sheet(wb, ws, zone.name.substring(0, 30));
+                });
+                const allReservations = [];
+                allReservations.push(["구역", "상태", "접수일", "이름", "전화번호", "담당자", "TM날짜", "비고", "배정된 락커"]);
+                app.data.zones.forEach(zone => {
+                    if(zone.reservations) { zone.reservations.forEach(res => { allReservations.push([ zone.name, res.status === 'pending' ? '대기중' : '완료', res.date, res.name, res.phone, res.staff, res.tm, res.note, res.assignedLocker || '-' ]); }); }
+                });
+                if (allReservations.length > 1) { const wsRes = XLSX.utils.aoa_to_sheet(allReservations); XLSX.utils.book_append_sheet(wb, wsRes, "전체 예약 현황"); }
+                XLSX.writeFile(wb, `락커관리_데이터_${new Date().toISOString().slice(0,10)}.xlsx`);
+            }
+        };
+
+        const app = {
+            data: { zones: [] },
+            history: [],
+            historyStep: -1,
+            currentZoneIdx: 0,
+            isEditMode: false,
+            currentTool: 'select', 
+            zoom: 60,
+            
+            isInteracting: false,
+            isDragging: false,
+            isSelecting: false, 
+            isMoving: false, 
+            canMove: false,
+            dragStartPos: { x: 0, y: 0 }, 
+            dragStartIdx: -1,
+            selectedIndices: new Set(),
+            autoNumCounter: 0, 
+            tierVisibility: { common: true, uncommon: true, rare: true, epic: true, legendary: true },
+            mouseDownPos: { x: 0, y: 0 },
+            longPressTimer: null,
+            
+            batchConfig: { corner: 'tl', axis: 'row' },
+
+            init() {
+                this.loadData();
+                this.renderTabs();
+                this.renderGrid();
+                this.updateStats();
+                window.addEventListener('keydown', (e) => {
+                    if (e.key === 'Shift') this.isShiftPressed = true;
+                    if (e.key === 'Control') this.isCtrlPressed = true;
+                    if (e.key === 'Delete' && this.isEditMode) this.deleteSelected();
+                    if (e.ctrlKey && (e.key === 'z' || e.key === 'Z')) { e.preventDefault(); if (e.shiftKey) this.redo(); else this.undo(); }
+                    if ((e.key === 'f' || e.key === 'F') && !['input','textarea','select'].includes(document.activeElement.tagName.toLowerCase())) { e.preventDefault(); const searchInput = document.getElementById('search-input'); if(searchInput) { searchInput.focus(); searchInput.select(); } }
+                });
+                window.addEventListener('keyup', (e) => { if (e.key === 'Shift') this.isShiftPressed = false; if (e.key === 'Control') this.isCtrlPressed = false; });
+                window.addEventListener('mousemove', (e) => this.handleMouseMove(e));
+                window.addEventListener('mouseup', (e) => this.handleMouseUp(e));
+            },
+
+            loadData() {
+                const saved = localStorage.getItem('gym_locker_v7_data');
+                if (saved) {
+                    this.data = JSON.parse(saved);
+                    this.data.zones.forEach(z => {
+                        if (!z.reservations) z.reservations = [];
+                        z.cells.forEach(c => { if(typeof c.isKey === 'undefined') c.isKey = false; if(typeof c.customLabel === 'undefined') c.customLabel = ''; if(typeof c.phone === 'undefined') c.phone = ''; });
+                    });
+                } else { this.data.zones = [ this.createZone("남자 개인", 12, 14), this.createZone("여자 개인", 12, 14), this.createZone("골프", 10, 20) ]; this.saveData(); }
+                if (typeof resManager !== 'undefined') resManager.updateBadge();
+            },
+
+            createZone(name, rows, cols) { const cells = Array(rows * cols).fill(null).map(() => ({ type: 'empty', number: '', name: '', password: '', phone: '', start: '', end: '', tier: 'common', statusOverride: 'auto', isKey: false, customLabel: '' })); return { id: Date.now() + Math.random(), name, rows, cols, cells, reservations: [] }; },
+            saveData(skipHistory = false) { if(!skipHistory) this.pushHistory(); localStorage.setItem('gym_locker_v7_data', JSON.stringify(this.data)); this.updateStats(); if (typeof resManager !== 'undefined') resManager.updateBadge(); },
+            pushHistory() { if (this.historyStep < this.history.length - 1) { this.history = this.history.slice(0, this.historyStep + 1); } this.history.push(JSON.stringify(this.data)); this.historyStep++; if (this.history.length > 30) { this.history.shift(); this.historyStep--; } },
+            undo() { if (this.historyStep > 0) { this.historyStep--; this.data = JSON.parse(this.history[this.historyStep]); this.saveData(true); this.renderTabs(); this.renderGrid(); } },
+            redo() { if (this.historyStep < this.history.length - 1) { this.historyStep++; this.data = JSON.parse(this.history[this.historyStep]); this.saveData(true); this.renderTabs(); this.renderGrid(); } },
+
+            renderTabs() { const container = document.getElementById('zone-tabs'); container.innerHTML = ''; this.data.zones.forEach((z, i) => { const btn = document.createElement('button'); btn.className = `whitespace-nowrap px-4 py-1.5 text-xs font-bold rounded-md transition-colors ${i === this.currentZoneIdx ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`; btn.innerText = z.name; btn.onclick = () => this.switchZone(i); container.appendChild(btn); }); const zone = this.data.zones[this.currentZoneIdx]; document.getElementById('current-zone-name').innerText = zone.name; document.getElementById('current-zone-size').innerText = `${zone.cols} x ${zone.rows}`; const rInput = document.getElementById('map-rows'); const cInput = document.getElementById('map-cols'); if(rInput) rInput.value = zone.rows; if(cInput) cInput.value = zone.cols; },
+
+            renderGrid() {
+                const zone = this.data.zones[this.currentZoneIdx];
+                const container = document.getElementById('grid-container');
+                container.style.display = 'grid';
+                container.style.gridTemplateColumns = `repeat(${zone.cols}, ${this.zoom}px)`;
+                container.style.gridTemplateRows = `repeat(${zone.rows}, ${this.zoom}px)`;
+                container.style.width = 'fit-content';
+                container.style.gap = '2px';
+                container.style.padding = '20px';
+                container.style.fontSize = `${this.zoom * 0.25}px`;
+                
+                let html = '';
+                zone.cells.forEach((cell, i) => {
+                    const isSelected = this.isEditMode && this.selectedIndices.has(i);
+                    const idxAttr = `data-idx="${i}"`;
+                    let customStyle = '';
+                    if (cell.color) { customStyle = `background-color: ${cell.color} !important;`; }
+
+                    if (cell.type === 'locker') {
+                        const isVisible = this.tierVisibility[cell.tier || 'common'];
+                        const filterClass = isVisible ? '' : 'filtered-out';
+                        const { status, diff } = this.calculateStatus(cell);
+                        let bgClass = '', dotClass = '';
+
+                        if (status === 'empty') { bgClass = ''; dotClass = ''; } 
+                        else if (status === 'broken') { bgClass = 'bg-broken'; } 
+                        else if (status === 'expired') { bgClass = 'bg-expired'; dotClass = 'dot-expired'; } 
+                        else if (status === 'occupied') {
+                            if (!cell.end) { bgClass = 'bg-occupied'; dotClass = 'dot-safe'; } 
+                            else {
+                                if (diff <= 7) { bgClass = 'bg-danger'; dotClass = 'dot-danger'; } 
+                                else if (diff <= 30) { bgClass = 'bg-warning'; dotClass = 'dot-warning'; } 
+                                else { bgClass = 'bg-occupied'; dotClass = 'dot-safe'; }
+                            }
+                        }
+                        const pwdDisplay = cell.isKey ? '<i class="fa-solid fa-key text-amber-500"></i>' : (cell.password || '');
+                        const cellClass = `grid-cell type-locker tier-${cell.tier} ${bgClass} ${isSelected ? 'selected' : ''} ${filterClass}`;
+                        html += `<div class="${cellClass}" ${idxAttr} id="cell-${i}" style="${customStyle}"><div class="locker-content"><div class="locker-top">${cell.number || ''}${dotClass ? `<div class="indicator-dot ${dotClass}"></div>` : ''}</div><div class="locker-bottom">${pwdDisplay}</div></div></div>`;
+                    } else if (cell.type === 'facility') {
+                        let labelHtml = ''; if(cell.customLabel) labelHtml = `<div class="custom-label-container" style="font-size: ${16 + (cell.labelSize || 0)*4}px">${cell.customLabel}</div>`;
+                        html += `<div class="grid-cell type-facility ${isSelected ? 'selected' : ''}" ${idxAttr} id="cell-${i}" style="${customStyle}">${labelHtml}</div>`;
+                    } else if (cell.type === 'wall') {
+                        html += `<div class="grid-cell type-wall ${isSelected ? 'selected' : ''}" ${idxAttr} id="cell-${i}" style="${customStyle}">WALL</div>`;
+                    } else if (cell.type === 'entrance') {
+                        html += `<div class="grid-cell type-entrance ${isSelected ? 'selected' : ''}" ${idxAttr} id="cell-${i}" style="${customStyle}">입구</div>`;
+                    } else {
+                        html += `<div class="grid-cell type-empty ${isSelected ? 'selected' : ''}" ${idxAttr} id="cell-${i}"></div>`;
+                    }
+                });
+                container.innerHTML = html;
+            },
+
+            calculateStatus(cell) {
+                if (cell.statusOverride && cell.statusOverride !== 'auto' && cell.statusOverride !== 'occupied') { return { status: cell.statusOverride, diff: 0 }; }
+                const hasName = (cell.name && cell.name.trim() !== '');
+                const hasDate = (cell.end && cell.end.trim() !== ''); 
+                const isForcedOccupied = (cell.statusOverride === 'occupied');
+
+                if (hasName || hasDate || isForcedOccupied) {
+                    if (!cell.end) return { status: 'occupied', diff: 999 };
+                    const today = new Date(); today.setHours(0, 0, 0, 0);
+                    const parts = cell.end.split('-');
+                    if (parts.length < 3) return { status: 'occupied', diff: 999 };
+                    const target = new Date(parts[0], parts[1] - 1, parts[2]); 
+                    const diffTime = target - today;
+                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+                    if (diffDays < 0) return { status: 'expired', diff: diffDays };
+                    return { status: 'occupied', diff: diffDays };
+                }
+                return { status: 'empty', diff: 0 };
+            },
+
+            updateStats() {
+                const zone = this.data.zones[this.currentZoneIdx];
+                let e=0, o=0, w=0, exp=0;
+                zone.cells.forEach(c => {
+                    if(c.type !== 'locker') return;
+                    const stData = this.calculateStatus(c);
+                    const st = stData.status; const diff = stData.diff;
+                    if (st === 'empty') e++;
+                    else if (st === 'expired') exp++;
+                    else if (st === 'occupied') { if (c.end && diff <= 7) w++; else if (c.end && diff <= 30) w++; else o++; }
+                });
+                document.getElementById('stat-empty').innerText = e;
+                document.getElementById('stat-occupied').innerText = o;
+                document.getElementById('stat-warning').innerText = w;
+                document.getElementById('stat-expired').innerText = exp;
+            },
+
+            // [NEW] 정확도 중심 검색 로직 (V7.7)
+            
+            // 1. 점수 계산기 (정확할수록 높은 점수)
+            getMatchScore(cell, term) {
+                const strNum = String(cell.number);
+                const strName = String(cell.name || '');
+                const strPw = String(cell.password || '');
+
+                // 1등: 번호 완전 일치 (예: "1" 검색 -> 락커 "1")
+                if (strNum === term) return 100;
+
+                // 2등: 이름 완전 일치
+                if (strName === term) return 90;
+
+                // 3등: 번호로 시작 (예: "1" 검색 -> 락커 "12", "100")
+                if (strNum.startsWith(term)) return 80;
+
+                // 4등: 이름에 포함
+                if (strName.includes(term)) return 60;
+
+                // 5등: 비밀번호에 포함
+                if (strPw.includes(term)) return 40;
+
+                return 0; // 매칭 안됨
+            },
+
+            // 2. 검색 결과 통합 처리 (정렬 포함)
+            getSortedSearchResults(term) {
+                const zone = this.data.zones[this.currentZoneIdx];
+                let results = [];
+
+                zone.cells.forEach((c, idx) => {
+                    if (c.type !== 'locker') return;
+                    
+                    const score = this.getMatchScore(c, term);
+                    if (score > 0) {
+                        results.push({ cell: c, idx: idx, score: score });
+                    }
+                });
+
+                // 점수 높은 순 -> 번호 오름차순 정렬 (같은 점수일 때 10, 11, 12 순서)
+                results.sort((a, b) => {
+                    if (b.score !== a.score) return b.score - a.score;
+                    // 번호 숫자 비교 (문자열 비교 방지 1, 10, 2 -> 1, 2, 10)
+                    return parseInt(a.cell.number) - parseInt(b.cell.number);
+                });
+
+                return results;
+            },
+
+            handleSearchInput(e) {
+                const term = e.target.value.trim();
+                const resultsEl = document.getElementById('search-results');
+                
+                // [수정] 엔터 키 처리: 1등으로 바로 이동
+                if (e.key === 'Enter' && term) {
+                    const sortedResults = this.getSortedSearchResults(term);
+                    if (sortedResults.length > 0) {
+                        this.jumpTo(sortedResults[0].idx); 
+                        resultsEl.classList.add('hidden');
+                        e.target.value = ''; 
+                    } else { 
+                        alert('현재 구역에서 검색 결과가 없습니다.'); 
+                    }
+                    return;
+                }
+
+                if (!term) { resultsEl.classList.add('hidden'); return; }
+                
+                const sortedResults = this.getSortedSearchResults(term);
+                
+                if(sortedResults.length === 0) {
+                    resultsEl.innerHTML = '<div class="p-2 text-slate-400 text-center">결과 없음</div>';
+                    resultsEl.classList.remove('hidden');
+                    return;
+                }
+
+                let html = '';
+                // 상위 10개만 표시
+                sortedResults.slice(0, 10).forEach(item => {
+                    const c = item.cell;
+                    html += `<div class="p-2 border-b hover:bg-slate-50 cursor-pointer text-left" onclick="app.jumpTo(${item.idx})">
+                                <span class="font-bold text-indigo-600">${c.number}번</span> 
+                                <span class="text-slate-600 text-xs ml-2">${c.name || '공석'}</span>
+                                ${c.password && c.password.includes(term) ? `<span class="text-xs text-slate-400 ml-1">(비번:${c.password})</span>` : ''}
+                             </div>`;
+                });
+
+                if (sortedResults.length > 10) {
+                    html += `<div class="p-2 text-xs text-center text-slate-400">...외 ${sortedResults.length - 10}건</div>`;
+                }
+                
+                resultsEl.innerHTML = html;
+                resultsEl.classList.remove('hidden');
+            },
+
+            // 구버전 isMatch, findFirstMatch 삭제하고 위 함수들로 대체됨
+
+            jumpTo(cIdx) {
+                setTimeout(() => {
+                    const target = document.getElementById(`cell-${cIdx}`);
+                    if (target) {
+                        target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                        target.classList.remove('blink-target');
+                        void target.offsetWidth; // 리플로우 트리거 (애니메이션 재시작용)
+                        target.classList.add('blink-target');
+                        setTimeout(() => target.classList.remove('blink-target'), 1500);
+                    }
+                }, 100);
+                document.getElementById('search-results').classList.add('hidden');
+            },
+
+            // --- 기존 유지되는 함수들 ---
+            handleMouseDown(e) {
+                if(e.button !== 0) return;
+                this.isInteracting = false; 
+                const container = document.getElementById('grid-container');
+                const rect = container.getBoundingClientRect();
+                const mouseX = e.clientX - rect.left;
+                const mouseY = e.clientY - rect.top;
+                this.mouseDownPos = { x: e.clientX, y: e.clientY };
+                this.dragStartPos = { x: mouseX, y: mouseY };
+                this.isDragging = false; this.isMoving = false; this.canMove = false;
+                const target = e.target.closest('.grid-cell');
+                const clickedIdx = target ? parseInt(target.dataset.idx) : -1;
+                this.dragStartIdx = clickedIdx;
+
+                if (!this.isEditMode) {
+                    if (clickedIdx >= 0) {
+                        const cell = this.data.zones[this.currentZoneIdx].cells[clickedIdx];
+                        if (cell.type === 'locker') this.openModal(clickedIdx);
+                    }
+                    return; 
+                }
+                this.isInteracting = true; 
+                if (this.currentTool === 'select') {
+                    const cell = clickedIdx >= 0 ? this.data.zones[this.currentZoneIdx].cells[clickedIdx] : null;
+                    const isObject = cell && (cell.type !== 'empty');
+                    if (isObject) {
+                        this.longPressTimer = setTimeout(() => {
+                            this.canMove = true; this.selectedIndices.add(clickedIdx); this.renderGrid();
+                            const el = document.getElementById(`cell-${clickedIdx}`); if(el) el.classList.add('move-ready');
+                        }, 600);
+                    } else {
+                        this.isSelecting = true;
+                        if (!this.isCtrlPressed) { this.selectedIndices.clear(); this.renderGrid(); }
+                    }
+                } else if (this.currentTool === 'locker') {
+                    this.autoNumCounter = parseInt(document.getElementById('auto-start-num').value) || 1;
+                    if(clickedIdx >= 0) this.paintCell(clickedIdx);
+                } else { if(clickedIdx >= 0) this.paintCell(clickedIdx); }
+            },
+
+            handleMouseMove(e) {
+                if (!this.isInteracting) return; 
+                if (e.buttons !== 1) return;
+                const dist = Math.hypot(e.clientX - this.mouseDownPos.x, e.clientY - this.mouseDownPos.y);
+                if (dist < 5 && !this.isDragging) return; 
+                if (this.longPressTimer) { clearTimeout(this.longPressTimer); this.longPressTimer = null; }
+                this.isDragging = true;
+                const container = document.getElementById('grid-container');
+                const rect = container.getBoundingClientRect();
+                const mouseX = e.clientX - rect.left;
+                const mouseY = e.clientY - rect.top;
+
+                if (this.isSelecting) { 
+                    const startX = this.dragStartPos.x; const startY = this.dragStartPos.y;
+                    const currentX = mouseX; const currentY = mouseY;
+                    const left = Math.min(startX, currentX); const top = Math.min(startY, currentY);
+                    const width = Math.abs(currentX - startX); const height = Math.abs(currentY - startY);
+                    this.updateMarqueeSelection(left, top, width, height);
+                } else if (this.canMove && this.currentTool === 'select') {
+                    this.isMoving = true;
+                } else if (this.currentTool === 'select' && !this.canMove) {
+                    if (!this.isSelecting) { this.isSelecting = true; if (!this.isCtrlPressed) { this.selectedIndices.clear(); this.renderGrid(); } }
+                    const startX = this.dragStartPos.x; const startY = this.dragStartPos.y;
+                    const currentX = mouseX; const currentY = mouseY;
+                    const left = Math.min(startX, currentX); const top = Math.min(startY, currentY);
+                    const width = Math.abs(currentX - startX); const height = Math.abs(currentY - startY);
+                    this.updateMarqueeSelection(left, top, width, height);
+                } else if (this.currentTool !== 'select') {
+                    const target = e.target.closest('.grid-cell');
+                    if (target) { const idx = parseInt(target.dataset.idx); if (this.lastPaintedIdx !== idx) { this.paintCell(idx); this.lastPaintedIdx = idx; } }
+                }
+            },
+
+            handleMouseUp(e) {
+                if (!this.isInteracting) return; 
+                this.isInteracting = false; 
+                if (this.longPressTimer) { clearTimeout(this.longPressTimer); this.longPressTimer = null; }
+                if (!this.isEditMode) return;
+                if (this.isSelecting) { this.isSelecting = false; } 
+                else if (this.currentTool === 'select') {
+                    if (!this.isDragging && !this.isMoving) {
+                        const target = e.target.closest('.grid-cell');
+                        const idx = target ? parseInt(target.dataset.idx) : -1;
+                        if (idx >= 0) {
+                            const cell = this.data.zones[this.currentZoneIdx].cells[idx];
+                            if (cell.type === 'empty') { this.selectedIndices.clear(); } 
+                            else { if (this.isCtrlPressed) { if (this.selectedIndices.has(idx)) this.selectedIndices.delete(idx); else this.selectedIndices.add(idx); } else { this.selectedIndices.clear(); this.selectedIndices.add(idx); } }
+                            this.renderGrid();
+                        } else { this.selectedIndices.clear(); this.renderGrid(); }
+                    } else if (this.isMoving) {
+                        const target = e.target.closest('.grid-cell');
+                        if (target) { const dropIdx = parseInt(target.dataset.idx); if (dropIdx !== this.dragStartIdx) this.moveSelectedCells(this.dragStartIdx, dropIdx); }
+                        document.querySelectorAll('.move-ready').forEach(el => el.classList.remove('move-ready'));
+                    }
+                }
+                if (this.currentTool === 'locker') document.getElementById('auto-start-num').value = this.autoNumCounter;
+                if (this.isDragging || this.isMoving || this.currentTool !== 'select') { this.saveData(); }
+                this.resetInteraction();
+            },
+
+            resetInteraction() { this.isDragging = false; this.isSelecting = false; this.isMoving = false; this.lastPaintedIdx = -1; },
+
+            updateMarqueeSelection(x, y, w, h) {
+                const zone = this.data.zones[this.currentZoneIdx];
+                const cols = zone.cols; const rows = zone.rows;
+                const cellSize = this.zoom; const gap = 2; const totalCellSize = cellSize + gap;
+                const offsetX = 20; const offsetY = 20;
+                const startCol = Math.floor((x - offsetX) / totalCellSize); const endCol = Math.floor((x + w - offsetX) / totalCellSize);
+                const startRow = Math.floor((y - offsetY) / totalCellSize); const endRow = Math.floor((y + h - offsetY) / totalCellSize);
+                
+                const validStartCol = Math.max(0, startCol);
+                const validEndCol = Math.min(cols - 1, endCol);
+                const validStartRow = Math.max(0, startRow);
+                const validEndRow = Math.min(rows - 1, endRow);
+                
+                const newSelection = new Set(this.isCtrlPressed ? this.selectedIndices : []);
+                for (let r = validStartRow; r <= validEndRow; r++) {
+                    for (let c = validStartCol; c <= validEndCol; c++) {
+                        const idx = r * cols + c;
+                        if(idx >= 0 && idx < zone.cells.length) { newSelection.add(idx); }
+                    }
+                }
+                this.selectedIndices = newSelection;
+                
+                if (this.isEditMode) {
+                    const selCount = this.selectedIndices.size;
+                    let selText = "선택 없음";
+                    if (selCount > 0) {
+                        const wCount = (validEndCol - validStartCol) + 1;
+                        const hCount = (validEndRow - validStartRow) + 1;
+                        if (this.isSelecting) {
+                            selText = `선택된 락커: <span class="text-white">${selCount}</span>개 (${wCount} x ${hCount})`;
+                        } else {
+                            selText = `선택된 락커: <span class="text-white">${selCount}</span>개`;
+                        }
+                    }
+                    const statsEl = document.getElementById('selection-stats');
+                    if(statsEl) statsEl.innerHTML = selText;
+                    
+                    this.renderGrid(); 
+                }
+            },
+
+            paintCell(idx) {
+                const zone = this.data.zones[this.currentZoneIdx];
+                const cell = zone.cells[idx];
+                if (this.currentTool === 'locker') { cell.type = 'locker'; cell.number = this.autoNumCounter++; cell.tier = 'common'; cell.statusOverride = 'auto'; cell.isKey = false; } 
+                else if (this.currentTool === 'wall') { cell.type = 'wall'; cell.number = ''; cell.customLabel = ''; }
+                else if (this.currentTool === 'eraser') { cell.type = 'empty'; cell.number = ''; cell.name = ''; cell.password = ''; cell.customLabel = ''; cell.color = ''; }
+                else if (this.currentTool === 'entrance') { cell.type = 'entrance'; cell.customLabel = ''; }
+                this.renderGrid();
+            },
+
+            moveSelectedCells(fromIdx, toIdx) {
+                const zone = this.data.zones[this.currentZoneIdx];
+                const cols = zone.cols;
+                const fromRow = Math.floor(fromIdx / cols); const fromCol = fromIdx % cols;
+                const toRow = Math.floor(toIdx / cols); const toCol = toIdx % cols;
+                const dRow = toRow - fromRow; const dCol = toCol - fromCol;
+                const newCells = JSON.parse(JSON.stringify(zone.cells));
+                const indices = Array.from(this.selectedIndices);
+                indices.forEach(i => { newCells[i] = { type: 'empty', number: '', tier: 'common' }; });
+                indices.forEach(i => {
+                    const r = Math.floor(i / cols) + dRow; const c = (i % cols) + dCol;
+                    if (r >= 0 && r < zone.rows && c >= 0 && c < zone.cols) newCells[r * cols + c] = JSON.parse(JSON.stringify(zone.cells[i]));
+                });
+                zone.cells = newCells;
+                const newSelection = new Set();
+                indices.forEach(i => { const r = Math.floor(i / cols) + dRow; const c = (i % cols) + dCol; if (r >= 0 && r < zone.rows && c >= 0 && c < zone.cols) newSelection.add(r * cols + c); });
+                this.selectedIndices = newSelection;
+                this.renderGrid();
+            },
+
+            deleteSelected() {
+                if (!confirm("선택한 락커를 삭제하시겠습니까?")) return;
+                const zone = this.data.zones[this.currentZoneIdx];
+                this.selectedIndices.forEach(idx => { zone.cells[idx] = { type: 'empty', number: '', tier: 'common' }; });
+                this.selectedIndices.clear(); this.saveData(); this.renderGrid();
+            },
+
+            batchSetStatus(status) {
+                const zone = this.data.zones[this.currentZoneIdx];
+                this.selectedIndices.forEach(idx => {
+                    const cell = zone.cells[idx];
+                    if (cell.type === 'locker') {
+                        if (status === 'empty') { cell.name = ''; cell.password = ''; cell.start = ''; cell.end = ''; cell.statusOverride = 'auto'; cell.phone = ''; } 
+                        else { cell.statusOverride = status; }
+                    }
+                });
+                this.saveData(); this.renderGrid();
+            },
+            
+            batchSetTier(tier) {
+                if(this.selectedIndices.size === 0) return alert("선택된 락커가 없습니다.");
+                const zone = this.data.zones[this.currentZoneIdx];
+                this.selectedIndices.forEach(idx => { if (zone.cells[idx].type === 'locker') zone.cells[idx].tier = tier; });
+                this.saveData(); this.renderGrid();
+            },
+
+            batchToggleKey() {
+                if(this.selectedIndices.size === 0) return alert("선택된 락커가 없습니다.");
+                const zone = this.data.zones[this.currentZoneIdx];
+                let changed = false;
+                this.selectedIndices.forEach(idx => { if (zone.cells[idx].type === 'locker') { zone.cells[idx].isKey = !zone.cells[idx].isKey; changed = true; } });
+                if(changed) { this.saveData(); this.renderGrid(); }
+            },
+
+            setBatchOption(type, val) {
+                if(!this.batchConfig) this.batchConfig = { corner: 'tl', axis: 'row' };
+                this.batchConfig[type] = val;
+                document.querySelectorAll(`#select-options button[id^='btn-${type}-']`).forEach(btn => {
+                    if (btn.id === `btn-${type}-${val}`) btn.classList.add('active');
+                    else btn.classList.remove('active');
+                });
+            },
+
+            batchCreateWalls() {
+                if (this.selectedIndices.size === 0) return alert("먼저 영역을 선택해주세요.");
+                if (!confirm("선택한 영역을 벽으로 채우시겠습니까?")) return;
+                const zone = this.data.zones[this.currentZoneIdx];
+                this.selectedIndices.forEach(idx => {
+                    const cell = zone.cells[idx]; cell.type = 'wall'; cell.number = ''; cell.customLabel = ''; 
+                });
+                this.saveData(); this.renderGrid();
+            },
+
+            batchSetColor(color) {
+                if (this.selectedIndices.size === 0) return alert("먼저 색상을 변경할 영역을 선택해주세요.");
+                const zone = this.data.zones[this.currentZoneIdx];
+                let appliedCount = 0;
+                this.selectedIndices.forEach(idx => {
+                    if (zone.cells[idx].type !== 'empty') { zone.cells[idx].color = color; appliedCount++; }
+                });
+                if (appliedCount === 0) return alert("색상을 적용할 수 있는 블록(벽, 락커, 시설물)이 선택되지 않았습니다.");
+                this.saveData(); this.renderGrid();
+            },
+
+            executeBatchCreate() {
+                if (this.selectedIndices.size === 0) return alert("먼저 락커를 생성할 영역을 선택해주세요.");
+                let startNum = parseInt(document.getElementById('batch-start-num').value);
+                if (isNaN(startNum)) return alert("시작 번호를 입력해주세요.");
+                const cfg = this.batchConfig || { corner: 'tl', axis: 'row' };
+                const cornerName = {tl:'왼쪽 위', tr:'오른쪽 위', bl:'왼쪽 아래', br:'오른쪽 아래'};
+                const axisName = {row:'가로 방향', col:'세로 방향'};
+                if (!confirm(`선택한 영역에 락커를 생성합니다.\n\n- 시작: ${cornerName[cfg.corner]}\n- 방향: ${axisName[cfg.axis]}\n- 번호: ${startNum}번 부터\n\n진행하시겠습니까?`)) return;
+                const zone = this.data.zones[this.currentZoneIdx];
+                const cols = zone.cols;
+                let indices = Array.from(this.selectedIndices);
+                indices.sort((a, b) => {
+                    const rA = Math.floor(a / cols), cA = a % cols;
+                    const rB = Math.floor(b / cols), cB = b % cols;
+                    if (cfg.axis === 'row') {
+                        if (rA !== rB) return (cfg.corner === 'tl' || cfg.corner === 'tr') ? (rA - rB) : (rB - rA);
+                        return (cfg.corner === 'tl' || cfg.corner === 'bl') ? (cA - cB) : (cB - cA);
+                    } else {
+                        if (cA !== cB) return (cfg.corner === 'tl' || cfg.corner === 'bl') ? (cA - cB) : (cB - cA);
+                        return (cfg.corner === 'tl' || cfg.corner === 'tr') ? (rA - rB) : (rB - rA);
+                    }
+                });
+                indices.forEach(idx => {
+                    const cell = zone.cells[idx];
+                    cell.type = 'locker'; cell.number = startNum++; cell.name = ''; cell.password = ''; cell.start = ''; cell.end = ''; cell.statusOverride = 'auto'; cell.tier = 'common'; cell.isKey = false; cell.color = null; 
+                });
+                document.getElementById('auto-start-num').value = startNum;
+                document.getElementById('batch-start-num').value = startNum;
+                this.saveData(); this.renderGrid();
+            },
+
+            createFacility() {
+                if(this.selectedIndices.size === 0) return alert("선택된 영역이 없습니다.");
+                const name = prompt("시설물 이름을 입력하세요 (예: 샤워실, 카운터)");
+                if(!name) return;
+                const zone = this.data.zones[this.currentZoneIdx];
+                const indices = Array.from(this.selectedIndices).sort((a,b) => a-b);
+                const cols = zone.cols;
+                let minR = Infinity, maxR = -Infinity, minC = Infinity, maxC = -Infinity;
+                indices.forEach(idx => {
+                    const r = Math.floor(idx / cols); const c = idx % cols;
+                    minR = Math.min(minR, r); maxR = Math.max(maxR, r); minC = Math.min(minC, c); maxC = Math.max(maxC, c);
+                    zone.cells[idx] = { type: 'facility', customLabel: '' };
+                });
+                const centerR = Math.floor((minR + maxR) / 2);
+                const centerC = Math.floor((minC + maxC) / 2);
+                const centerIdx = centerR * cols + centerC;
+                if(zone.cells[centerIdx]) {
+                    zone.cells[centerIdx].customLabel = name;
+                    const sizeFactor = Math.min(maxR - minR, maxC - minC);
+                    zone.cells[centerIdx].labelSize = sizeFactor; 
+                }
+                this.saveData(); this.renderGrid();
+            },
+
+            toggleEditMode() {
+                this.isEditMode = !this.isEditMode;
+                const btn = document.getElementById('edit-mode-btn').firstElementChild;
+                const panel = document.getElementById('edit-panel');
+                const guide = document.getElementById('guide-msg');
+                if (this.isEditMode) {
+                    btn.style.transform = 'translateX(20px)';
+                    document.getElementById('edit-mode-btn').classList.replace('bg-slate-200', 'bg-indigo-500');
+                    panel.classList.remove('hidden');
+                    document.body.classList.add('edit-mode');
+                    guide.innerText = "편집 모드입니다. 도구를 선택하여 맵을 수정하세요.";
+                    this.setTool('select');
+                } else {
+                    btn.style.transform = 'translateX(0)';
+                    document.getElementById('edit-mode-btn').classList.replace('bg-indigo-500', 'bg-slate-200');
+                    panel.classList.add('hidden');
+                    document.body.classList.remove('edit-mode');
+                    guide.innerText = "락커를 클릭하여 회원 정보를 등록하세요.";
+                    this.selectedIndices.clear();
+                    this.renderGrid();
+                }
+            },
+
+            setTool(tool) {
+                this.currentTool = tool;
+                document.querySelectorAll('.tool-btn').forEach(el => {
+                    if (el.dataset.tool === tool) { el.classList.add('bg-indigo-600', 'active'); el.classList.remove('bg-slate-700'); } 
+                    else { el.classList.remove('bg-indigo-600', 'active'); el.classList.add('bg-slate-700'); }
+                });
+                const lockerOpts = document.getElementById('locker-options');
+                const selectOpts = document.getElementById('select-options');
+                lockerOpts.classList.add('hidden'); selectOpts.classList.add('hidden');
+                if (tool === 'locker') lockerOpts.classList.remove('hidden');
+                if (tool === 'select') selectOpts.classList.remove('hidden');
+            },
+
+            setZoom(val) { this.zoom = parseInt(val); this.renderGrid(); },
+
+            switchZone(idx) {
+                this.currentZoneIdx = idx; this.selectedIndices.clear();
+                this.renderTabs(); this.renderGrid(); this.updateStats();
+                if (typeof resManager !== 'undefined') resManager.updateBadge(); 
+            },
+            
+            addNewZone() { const name = prompt("새 구역 이름:"); if(name) { this.data.zones.push(this.createZone(name, 10, 10)); this.saveData(); this.switchZone(this.data.zones.length - 1); } },
+            
+            resizeMap() {
+                const r = parseInt(document.getElementById('map-rows').value); const c = parseInt(document.getElementById('map-cols').value);
+                if (!r || !c) return;
+                const zone = this.data.zones[this.currentZoneIdx];
+                const newCells = [];
+                for(let i=0; i<r; i++) {
+                    for(let j=0; j<c; j++) {
+                        if (i < zone.rows && j < zone.cols) { newCells.push(zone.cells[i * zone.cols + j]); } 
+                        else { newCells.push({ type: 'empty', tier: 'common', statusOverride: 'auto' }); }
+                    }
+                }
+                zone.rows = r; zone.cols = c; zone.cells = newCells;
+                this.saveData(); this.renderTabs(); this.renderGrid();
+            },
+
+            openModal(idx) {
+                const cell = this.data.zones[this.currentZoneIdx].cells[idx];
+                document.getElementById('edit-idx').value = idx;
+                document.getElementById('modal-title').innerText = `${cell.number || '락커'} 정보 수정`;
+                document.getElementById('edit-number').value = cell.number || '';
+                document.getElementById('edit-tier').value = cell.tier || 'common';
+                document.getElementById('edit-name').value = cell.name || '';
+                document.getElementById('edit-phone').value = cell.phone || '';
+                document.getElementById('edit-password').value = cell.password || '';
+                document.getElementById('edit-start').value = cell.start || '';
+                document.getElementById('edit-end').value = cell.end || '';
+                document.getElementById('edit-status').value = cell.statusOverride || 'auto';
+                document.getElementById('edit-iskey').checked = cell.isKey || false; 
+                this.updateDdayBadge(cell.end);
+                document.getElementById('locker-modal').classList.remove('hidden');
+                document.getElementById('edit-password').focus();
+            },
+
+            saveLockerData(e) {
+                e.preventDefault();
+                const idx = document.getElementById('edit-idx').value;
+                const cell = this.data.zones[this.currentZoneIdx].cells[idx];
+                cell.number = document.getElementById('edit-number').value;
+                cell.tier = document.getElementById('edit-tier').value;
+                cell.name = document.getElementById('edit-name').value;
+                cell.phone = document.getElementById('edit-phone').value;
+                cell.password = document.getElementById('edit-password').value;
+                cell.start = document.getElementById('edit-start').value;
+                cell.end = document.getElementById('edit-end').value;
+                cell.statusOverride = document.getElementById('edit-status').value;
+                cell.isKey = document.getElementById('edit-iskey').checked; 
+                this.saveData(); this.closeModal(); this.renderGrid();
+            },
+
+            closeModal() { document.getElementById('locker-modal').classList.add('hidden'); },
+            clearLocker() { if(!confirm("정보를 비우시겠습니까?")) return; document.getElementById('edit-name').value = ''; document.getElementById('edit-phone').value = ''; document.getElementById('edit-password').value = ''; document.getElementById('edit-start').value = ''; document.getElementById('edit-end').value = ''; document.getElementById('edit-status').value = 'auto'; },
+
+            addMonths(m) {
+                const startEl = document.getElementById('edit-start'); const endEl = document.getElementById('edit-end');
+                let d = startEl.value ? new Date(startEl.value) : new Date();
+                if(!startEl.value) startEl.value = d.toISOString().split('T')[0];
+                d.setMonth(d.getMonth() + m); d.setDate(d.getDate() - 1);
+                endEl.value = d.toISOString().split('T')[0];
+            },
+
+            updateDdayBadge(date) {
+                const el = document.getElementById('d-day-badge');
+                if(!date) { el.innerText = '-'; return; }
+                const today = new Date(); today.setHours(0,0,0,0);
+                const end = new Date(date); end.setHours(0,0,0,0);
+                const diff = Math.ceil((end - today) / (1000 * 60 * 60 * 24));
+                el.innerText = diff < 0 ? `만료 D+${Math.abs(diff)}` : `D-${diff}`;
+                el.className = diff < 0 ? 'text-xs font-bold text-red-500' : (diff <= 7 ? 'text-xs font-bold text-orange-500' : 'text-xs font-bold text-slate-500');
+            },
+
+            toggleTier(tier) {
+                this.tierVisibility[tier] = !this.tierVisibility[tier];
+                const btn = document.getElementById(`filter-${tier}`);
+                if (this.tierVisibility[tier]) btn.classList.add('active'); else btn.classList.remove('active');
+                this.renderGrid();
+            }
+        };
+        app.init();
+    </script>
+</body>
+</html>

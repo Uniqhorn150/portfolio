@@ -1,0 +1,569 @@
+<!doctype html>
+<html lang="ko" class="scroll-smooth">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>최준우 | AI-Native Product Builder</title>
+  
+  <!-- Pretendard Font -->
+  <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+  <!-- Remix Icon -->
+  <link href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css" rel="stylesheet">
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Pretendard', 'ui-sans-serif', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'sans-serif'],
+            mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono', 'Courier New', 'monospace'],
+          },
+          colors: {
+            slate: {
+              850: '#151e2e',
+              950: '#020617', // Custom deeply dark color
+            }
+          },
+          animation: {
+            'blob': 'blob 10s infinite',
+            'fade-in': 'fadeIn 0.8s ease-out forwards',
+            'slide-up': 'slideUp 0.8s ease-out forwards',
+          },
+          keyframes: {
+            blob: {
+              '0%': { transform: 'translate(0px, 0px) scale(1)' },
+              '33%': { transform: 'translate(30px, -50px) scale(1.1)' },
+              '66%': { transform: 'translate(-20px, 20px) scale(0.9)' },
+              '100%': { transform: 'translate(0px, 0px) scale(1)' },
+            },
+            fadeIn: {
+              '0%': { opacity: '0' },
+              '100%': { opacity: '1' },
+            },
+            slideUp: {
+              '0%': { opacity: '0', transform: 'translateY(20px)' },
+              '100%': { opacity: '1', transform: 'translateY(0)' },
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #020617;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #475569;
+    }
+    
+    .glass-card {
+      background: rgba(255, 255, 255, 0.03);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    
+    .glass-nav {
+      background: rgba(2, 6, 23, 0.7);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    
+    .text-gradient {
+      background-clip: text;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-image: linear-gradient(to right, #e2e8f0, #94a3b8);
+    }
+
+    .card-hover {
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .card-hover:hover {
+      transform: translateY(-4px);
+      background: rgba(255, 255, 255, 0.05);
+      border-color: rgba(255, 255, 255, 0.15);
+      box-shadow: 0 10px 40px -10px rgba(0,0,0,0.5);
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-300 font-sans antialiased selection:bg-indigo-500/30 selection:text-indigo-200">
+
+  <!-- Dynamic Background -->
+  <div class="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
+    <div class="absolute top-0 left-1/4 w-[500px] h-[500px] bg-indigo-500/10 rounded-full mix-blend-screen filter blur-[100px] opacity-30 animate-blob"></div>
+    <div class="absolute top-0 right-1/4 w-[500px] h-[500px] bg-emerald-500/10 rounded-full mix-blend-screen filter blur-[100px] opacity-30 animate-blob animation-delay-2000"></div>
+    <div class="absolute -bottom-32 left-1/3 w-[500px] h-[500px] bg-purple-500/10 rounded-full mix-blend-screen filter blur-[100px] opacity-30 animate-blob animation-delay-4000"></div>
+    <div class="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 brightness-100 contrast-150"></div>
+  </div>
+
+  <!-- Floating Nav -->
+  <header class="fixed top-4 left-0 right-0 z-50 flex justify-center px-4">
+    <nav class="glass-nav rounded-full px-6 py-3 flex items-center justify-between gap-8 shadow-2xl shadow-black/50 border border-white/10 max-w-4xl w-full">
+      <a href="#" target="_self" class="font-bold text-slate-100 tracking-tight text-lg hover:text-white transition-colors">Junwoo</a>
+      
+      <div class="hidden md:flex items-center gap-6 text-sm font-medium text-slate-400">
+        <a class="hover:text-white transition-colors" href="#about" target="_self">About</a>
+        <a class="hover:text-white transition-colors" href="#strengths" target="_self">Capabilities</a>
+        <a class="hover:text-white transition-colors" href="#projects" target="_self">Work</a>
+        <a class="hover:text-white transition-colors" href="#workflow" target="_self">Process</a>
+      </div>
+      
+      <a href="#contact" target="_self" class="inline-flex items-center justify-center rounded-full bg-white text-slate-950 px-5 py-2 text-xs font-bold hover:bg-slate-200 transition-colors">
+        Contact
+      </a>
+    </nav>
+  </header>
+
+  <!-- Hero Section -->
+  <section id="about" class="min-h-screen flex items-center justify-center pt-32 pb-20 px-4 relative">
+    <div class="max-w-4xl mx-auto text-center space-y-8 animate-slide-up">
+      
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 text-xs font-medium mb-4">
+        <span class="relative flex h-2 w-2">
+          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+          <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+        </span>
+        Open to Opportunities
+      </div>
+
+      <h1 class="text-5xl md:text-7xl font-bold tracking-tight text-white leading-[1.1]">
+        Building Products with <br />
+        <span class="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-purple-400 to-emerald-400">Structure & Speed</span>
+      </h1>
+      
+      <p class="text-xl text-slate-400 max-w-2xl mx-auto leading-relaxed">
+        현장의 병목과 운영 리스크를 <span class="text-slate-100 font-semibold">규칙</span>으로 재구성하고,<br class="hidden md:block"/>
+        AI를 파트너로 삼아 <span class="text-slate-100 font-semibold">실제로 돌아가는 제품</span>을 만듭니다.
+      </p>
+
+      <div class="flex flex-wrap justify-center gap-4 mt-8">
+        <a href="#projects" target="_self" class="group relative inline-flex h-12 items-center justify-center overflow-hidden rounded-full bg-slate-100 px-8 font-medium text-slate-950 transition-all duration-300 hover:bg-white hover:ring-2 hover:ring-white hover:ring-offset-2 hover:ring-offset-slate-950">
+          <span class="mr-2">View Projects</span>
+          <svg class="w-4 h-4 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"></path></svg>
+        </a>
+        <a href="#workflow" target="_self" class="inline-flex h-12 items-center justify-center rounded-full border border-slate-700 bg-transparent px-8 font-medium text-slate-300 transition-all hover:bg-slate-800 hover:text-white">
+          How I Work
+        </a>
+      </div>
+
+      <!-- Tech Stack Pills -->
+      <div class="pt-12 flex flex-wrap justify-center gap-3 opacity-60 grayscale hover:grayscale-0 transition-all duration-500">
+        <span class="px-4 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs font-mono">Problem → Build</span>
+        <span class="px-4 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs font-mono">AI Collaboration</span>
+        <span class="px-4 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs font-mono">Operations Logic</span>
+        <span class="px-4 py-2 rounded-xl bg-slate-900 border border-slate-800 text-xs font-mono">Design Thinking</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Capabilities (Bento Grid) -->
+  <section id="strengths" class="max-w-6xl mx-auto px-4 py-20">
+    <div class="mb-12 md:flex items-end justify-between border-b border-white/5 pb-6">
+      <div>
+        <h2 class="text-3xl font-bold text-white tracking-tight">Capabilities</h2>
+        <p class="mt-2 text-slate-400">현장 감각과 AI 협업으로 가속화된 제품 사고</p>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <!-- Card 1: Large -->
+      <div class="md:col-span-2 glass-card rounded-3xl p-8 card-hover relative overflow-hidden group">
+        <div class="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl group-hover:bg-indigo-500/20 transition-all"></div>
+        <div class="relative z-10">
+          <div class="w-12 h-12 rounded-2xl bg-indigo-500/20 flex items-center justify-center mb-6 text-indigo-400">
+            <i class="ri-lightbulb-flash-line text-2xl"></i>
+          </div>
+          <h3 class="text-2xl font-bold text-white mb-1">병목 해결 및 문제 정의</h3>
+          <p class="text-sm font-mono text-indigo-400 mb-3">Problem Solving & Bottleneck Removal</p>
+          <p class="text-slate-400 leading-relaxed">
+            업무 흐름에서 불필요한 판단, 중복 작업, 위험 지점을 찾아 제거합니다. 
+            엑셀과 수기에 의존하던 업무를 웹 기반 도구로 전환하여 결과의 일관성을 보장합니다.
+          </p>
+        </div>
+      </div>
+
+      <!-- Card 2 -->
+      <div class="glass-card rounded-3xl p-8 card-hover">
+        <div class="w-12 h-12 rounded-2xl bg-emerald-500/20 flex items-center justify-center mb-6 text-emerald-400">
+          <i class="ri-flask-line text-2xl"></i>
+        </div>
+        <h3 class="text-lg font-bold text-white mb-1">제품 사고</h3>
+        <p class="text-xs font-mono text-emerald-400 mb-3">Product Thinking</p>
+        <div class="font-bold text-slate-200 mb-1">결과를 기준으로 설계</div>
+        <p class="text-sm text-slate-400">기능보다 정합성·재현성·리스크 감소를 우선하며 업무를 ‘고정’합니다.</p>
+      </div>
+
+      <!-- Card 3 -->
+      <div class="glass-card rounded-3xl p-8 card-hover">
+        <div class="w-12 h-12 rounded-2xl bg-purple-500/20 flex items-center justify-center mb-6 text-purple-400">
+          <i class="ri-robot-line text-2xl"></i>
+        </div>
+        <h3 class="text-lg font-bold text-white mb-1">AI 협업</h3>
+        <p class="text-xs font-mono text-purple-400 mb-3">AI Collaboration</p>
+        <div class="font-bold text-slate-200 mb-1">역할 분리로 품질 유지</div>
+        <p class="text-sm text-slate-400">조사·설계·구현·검증을 분리해 속도와 안정성을 함께 가져갑니다.</p>
+      </div>
+
+      <!-- Card 4 -->
+      <div class="glass-card rounded-3xl p-8 card-hover">
+        <div class="w-12 h-12 rounded-2xl bg-orange-500/20 flex items-center justify-center mb-6 text-orange-400">
+           <i class="ri-customer-service-2-line text-2xl"></i>
+        </div>
+        <h3 class="text-lg font-bold text-white mb-1">운영 & CS</h3>
+        <p class="text-xs font-mono text-orange-400 mb-3">Operations & CS</p>
+        <div class="font-bold text-slate-200 mb-1">분쟁이 생기는 구조 제거</div>
+        <p class="text-sm text-slate-400">현장/고객 관점에서 문제를 재정의하고 프로세스로 재발을 막습니다.</p>
+      </div>
+      
+      <!-- Card 5: Wide -->
+      <div class="glass-card rounded-3xl p-8 card-hover md:col-span-1 flex flex-col justify-between">
+         <div>
+            <div class="w-12 h-12 rounded-2xl bg-blue-500/20 flex items-center justify-center mb-6 text-blue-400">
+               <i class="ri-shield-check-line text-2xl"></i>
+            </div>
+            <h3 class="text-lg font-bold text-white mb-1">컴플라이언스</h3>
+            <p class="text-xs font-mono text-blue-400 mb-3">Compliance (ISMS)</p>
+            <div class="font-bold text-slate-200 mb-1">문서·통제 감각</div>
+            <p class="text-sm text-slate-400">체크리스트 기반 운영과 통제 포인트를 이해하며 설계에 반영합니다.</p>
+         </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Projects Section -->
+  <section id="projects" class="max-w-6xl mx-auto px-4 py-12 space-y-24">
+    
+    <!-- Project 1 -->
+    <div class="relative grid lg:grid-cols-2 gap-12 items-center">
+      <!-- Content -->
+      <div class="order-2 lg:order-1">
+        <div class="text-indigo-400 font-mono text-sm mb-4">PROJECT 01 — DIGITAL TWIN</div>
+        <h3 class="text-4xl font-bold text-white mb-6">GYM Locker Manager</h3>
+        <p class="text-slate-400 text-lg leading-relaxed mb-8">
+          공간 정보 부재와 정보 분산으로 생기던 운영 병목을 ‘물리적 배치 그대로’ 보이는 <span class="text-white font-semibold">그리드 맵</span>과 자동 로직으로 해결했습니다.
+        </p>
+
+        <div class="space-y-4 mb-8">
+            <div class="flex items-start gap-4">
+                <div class="mt-1 w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0"></div>
+                <div>
+                    <strong class="text-slate-200 block text-sm">Problem</strong>
+                    <span class="text-slate-400 text-sm">동선 낭비 · 데이터 파편화 · 휴먼에러 빈발</span>
+                </div>
+            </div>
+            <div class="flex items-start gap-4">
+                <div class="mt-1 w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0"></div>
+                <div>
+                    <strong class="text-slate-200 block text-sm">Solution</strong>
+                    <span class="text-slate-400 text-sm">직관적 시각화 + 상태 자동 판별 + 엑셀 양방향 동기화</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex flex-wrap gap-3">
+          <a href="apps/locker_manager.html" class="inline-flex items-center justify-center rounded-xl bg-indigo-600 px-6 py-3 text-sm font-bold text-white hover:bg-indigo-500 transition-colors shadow-lg shadow-indigo-500/20">
+            Run Demo
+          </a>
+          <a href="projects/locker_deck.pdf" class="inline-flex items-center justify-center rounded-xl bg-white/5 border border-white/10 px-6 py-3 text-sm font-bold text-white hover:bg-white/10 transition-colors">
+            Case Study (PDF)
+          </a>
+          <a href="https://www.figma.com/deck/xfuzaMZkzePh9HiZBlO36b/GYMLockerManager?node-id=0-1&t=VblT4Gyaen5LqFBp-1" target="_blank" rel="noopener" class="inline-flex items-center justify-center rounded-xl bg-white/5 border border-white/10 px-6 py-3 text-sm font-bold text-white hover:bg-white/10 transition-colors">
+            View Slides (Figma)
+          </a>
+        </div>
+      </div>
+      
+      <!-- Visual/Card -->
+      <div class="order-1 lg:order-2">
+        <div class="relative rounded-3xl overflow-hidden border border-white/10 bg-slate-900 shadow-2xl group">
+          <div class="absolute inset-0 bg-indigo-500/10 mix-blend-overlay"></div>
+          <!-- Abstract Placeholder Representation -->
+          <div class="aspect-[4/3] bg-slate-800 relative flex items-center justify-center overflow-hidden">
+             <!-- Decorative Grid -->
+             <div class="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:24px_24px]"></div>
+             <div class="grid grid-cols-4 gap-2 opacity-50 transform group-hover:scale-105 transition-transform duration-700">
+                 <div class="w-12 h-16 rounded bg-indigo-500/40 border border-indigo-400/30"></div>
+                 <div class="w-12 h-16 rounded bg-slate-700/40 border border-slate-600/30"></div>
+                 <div class="w-12 h-16 rounded bg-red-500/40 border border-red-400/30"></div>
+                 <div class="w-12 h-16 rounded bg-slate-700/40 border border-slate-600/30"></div>
+                 <div class="w-12 h-16 rounded bg-slate-700/40 border border-slate-600/30"></div>
+                 <div class="w-12 h-16 rounded bg-indigo-500/40 border border-indigo-400/30"></div>
+             </div>
+          </div>
+          <div class="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-slate-950 to-transparent">
+             <div class="flex gap-2">
+                 <span class="text-[10px] font-bold uppercase tracking-wider text-slate-300 bg-white/10 px-2 py-1 rounded">No-DB</span>
+                 <span class="text-[10px] font-bold uppercase tracking-wider text-slate-300 bg-white/10 px-2 py-1 rounded">Serverless</span>
+             </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Project 2 -->
+    <div class="relative grid lg:grid-cols-2 gap-12 items-center">
+        <!-- Visual/Card -->
+        <div class="order-1">
+          <div class="relative rounded-3xl overflow-hidden border border-white/10 bg-slate-900 shadow-2xl group">
+            <div class="absolute inset-0 bg-orange-500/10 mix-blend-overlay"></div>
+            <div class="aspect-[4/3] bg-slate-800 relative flex items-center justify-center overflow-hidden">
+               <div class="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:24px_24px]"></div>
+               <!-- Abstract Calculator UI -->
+               <div class="w-3/4 p-4 rounded-xl bg-slate-900 border border-slate-700 shadow-xl transform group-hover:rotate-1 transition-transform duration-700">
+                   <div class="h-2 w-1/3 bg-slate-700 rounded mb-4"></div>
+                   <div class="space-y-2">
+                       <div class="h-8 bg-slate-800 rounded border border-slate-700 flex items-center px-3 text-xs text-orange-400 font-mono">Rule: Refund_Type_A</div>
+                       <div class="h-8 bg-slate-800 rounded border border-slate-700 flex items-center px-3 text-xs text-slate-400 font-mono">Input: 15 sessions</div>
+                       <div class="h-1 bg-slate-700 my-2"></div>
+                       <div class="h-8 bg-orange-500/20 rounded border border-orange-500/30 flex items-center px-3 text-xs text-orange-200 font-bold justify-between">
+                           <span>Result</span>
+                           <span>Calculated</span>
+                       </div>
+                   </div>
+               </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Content -->
+        <div class="order-2">
+          <div class="text-orange-400 font-mono text-sm mb-4">PROJECT 02 — RULES ENGINE</div>
+          <h3 class="text-4xl font-bold text-white mb-6">Fitness Settlement Calculator</h3>
+          <p class="text-slate-400 text-lg leading-relaxed mb-8">
+            복잡한 정산 규정(회차, 프로모션, 위약금)을 <span class="text-white font-semibold">규칙 단위로 모델링</span>하여, 
+            누가 입력하든 <span class="text-white font-semibold">같은 입력 → 같은 결과</span>를 보장하는 CS 리스크 제거 도구입니다.
+          </p>
+  
+          <div class="space-y-4 mb-8">
+              <div class="flex items-start gap-4">
+                  <div class="mt-1 w-1.5 h-1.5 rounded-full bg-orange-500 shrink-0"></div>
+                  <div>
+                      <strong class="text-slate-200 block text-sm">Problem</strong>
+                      <span class="text-slate-400 text-sm">수기 계산 오류 · 고객 클레임 · 불필요한 감정 소모</span>
+                  </div>
+              </div>
+              <div class="flex items-start gap-4">
+                  <div class="mt-1 w-1.5 h-1.5 rounded-full bg-orange-500 shrink-0"></div>
+                  <div>
+                      <strong class="text-slate-200 block text-sm">Solution</strong>
+                      <span class="text-slate-400 text-sm">규칙 모델링 + 예외 케이스 표준화</span>
+                  </div>
+              </div>
+          </div>
+  
+          <div class="flex flex-wrap gap-3">
+            <a href="apps/fitness_manager.html" class="inline-flex items-center justify-center rounded-xl bg-orange-500 px-6 py-3 text-sm font-bold text-white hover:bg-orange-400 transition-colors shadow-lg shadow-orange-500/20">
+              Run Demo
+            </a>
+            <a href="projects/fitness_deck.pdf" class="inline-flex items-center justify-center rounded-xl bg-white/5 border border-white/10 px-6 py-3 text-sm font-bold text-white hover:bg-white/10 transition-colors">
+              Case Study (PDF)
+            </a>
+            <a href="https://www.figma.com/deck/cYw9FpzK6MyymkryeYxFS8/Fitness-Settlement-Calculator" target="_blank" rel="noopener" class="inline-flex items-center justify-center rounded-xl bg-white/5 border border-white/10 px-6 py-3 text-sm font-bold text-white hover:bg-white/10 transition-colors">
+              View Slides (Figma)
+            </a>
+          </div>
+        </div>
+      </div>
+
+  </section>
+
+  <!-- Process / Workflow -->
+  <section id="workflow" class="max-w-4xl mx-auto px-4 py-20">
+    <div class="text-center mb-16">
+        <h2 class="text-3xl font-bold text-white mb-4">My Workflow</h2>
+        <p class="text-slate-400">규칙 고정 → AI 협업 구현 → 실케이스 검증 루프</p>
+    </div>
+
+    <div class="relative">
+        <!-- Connecting Line (Desktop) -->
+        <div class="hidden md:block absolute top-1/2 left-0 w-full h-0.5 bg-gradient-to-r from-transparent via-slate-700 to-transparent -translate-y-1/2 z-0"></div>
+
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-6 relative z-10">
+            <!-- Step 1 -->
+            <div class="glass-card p-6 rounded-2xl text-center group hover:-translate-y-2 transition-transform">
+                <div class="w-10 h-10 mx-auto bg-slate-800 rounded-full border border-slate-600 flex items-center justify-center text-xs font-bold text-white mb-4 shadow-[0_0_15px_rgba(255,255,255,0.1)]">01</div>
+                <h4 class="text-white font-bold mb-1">Discover</h4>
+                <p class="text-xs text-slate-400">병목/리스크 포착</p>
+            </div>
+            <!-- Step 2 -->
+            <div class="glass-card p-6 rounded-2xl text-center group hover:-translate-y-2 transition-transform">
+                <div class="w-10 h-10 mx-auto bg-slate-800 rounded-full border border-slate-600 flex items-center justify-center text-xs font-bold text-white mb-4 shadow-[0_0_15px_rgba(255,255,255,0.1)]">02</div>
+                <h4 class="text-white font-bold mb-1">Define</h4>
+                <p class="text-xs text-slate-400">규칙 문장화</p>
+            </div>
+            <!-- Step 3 -->
+            <div class="glass-card p-6 rounded-2xl text-center group hover:-translate-y-2 transition-transform">
+                <div class="w-10 h-10 mx-auto bg-slate-800 rounded-full border border-slate-600 flex items-center justify-center text-xs font-bold text-white mb-4 shadow-[0_0_15px_rgba(255,255,255,0.1)]">03</div>
+                <h4 class="text-white font-bold mb-1">Split</h4>
+                <p class="text-xs text-slate-400">AI 역할 분담</p>
+            </div>
+            <!-- Step 4 -->
+            <div class="glass-card p-6 rounded-2xl text-center group hover:-translate-y-2 transition-transform">
+                <div class="w-10 h-10 mx-auto bg-slate-800 rounded-full border border-slate-600 flex items-center justify-center text-xs font-bold text-white mb-4 shadow-[0_0_15px_rgba(255,255,255,0.1)]">04</div>
+                <h4 class="text-white font-bold mb-1">Build</h4>
+                <p class="text-xs text-slate-400">MVP 고속 구현</p>
+            </div>
+            <!-- Step 5 -->
+            <div class="glass-card p-6 rounded-2xl text-center group hover:-translate-y-2 transition-transform">
+                <div class="w-10 h-10 mx-auto bg-slate-800 rounded-full border border-slate-600 flex items-center justify-center text-xs font-bold text-white mb-4 shadow-[0_0_15px_rgba(255,255,255,0.1)]">05</div>
+                <h4 class="text-white font-bold mb-1">Validate</h4>
+                <p class="text-xs text-slate-400">실케이스 검증</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="mt-12 grid md:grid-cols-3 gap-4">
+        <div class="rounded-2xl bg-white/5 border border-white/5 p-4 flex items-center gap-4">
+            <div class="text-2xl">🔍</div>
+            <div>
+                <div class="font-bold text-slate-200 text-sm">Perplexity / Web</div>
+                <div class="text-xs text-slate-500">레퍼런스/정책 조사</div>
+            </div>
+        </div>
+        <div class="rounded-2xl bg-white/5 border border-white/5 p-4 flex items-center gap-4">
+            <div class="text-2xl">🧠</div>
+            <div>
+                <div class="font-bold text-slate-200 text-sm">GPT (Architect)</div>
+                <div class="text-xs text-slate-500">로직 구조화 & 모델링, 엣지케이스 검증</div>
+            </div>
+        </div>
+        <div class="rounded-2xl bg-white/5 border border-white/5 p-4 flex items-center gap-4">
+            <div class="text-2xl">⚡</div>
+            <div>
+                <div class="font-bold text-slate-200 text-sm">Gemini (Coder)</div>
+                <div class="text-xs text-slate-500">구현 및 테스트 케이스</div>
+            </div>
+        </div>
+    </div>
+  </section>
+
+  <!-- My Profile Highlights (Revamped) -->
+  <section class="max-w-6xl mx-auto px-4 py-20">
+      <div class="mb-12 border-b border-white/5 pb-6">
+        <h2 class="text-3xl font-bold text-white tracking-tight">My Profile Highlights</h2>
+        <p class="mt-2 text-slate-400">폭넓은 시야와 실행력을 갖춘 제너럴리스트의 깊이</p>
+      </div>
+
+      <div class="grid md:grid-cols-3 gap-6">
+          <!-- Card 1: CS & Ops -->
+          <div class="glass-card p-8 rounded-3xl card-hover flex flex-col h-full relative group overflow-hidden">
+              <div class="absolute top-0 right-0 p-8 opacity-20 group-hover:scale-110 transition-transform">
+                  <i class="ri-global-line text-8xl text-indigo-500"></i>
+              </div>
+              <div class="w-12 h-12 rounded-xl bg-indigo-500/20 flex items-center justify-center mb-6 text-indigo-400 z-10">
+                <i class="ri-building-4-line text-2xl"></i>
+              </div>
+              <h3 class="text-xl font-bold text-white mb-2 z-10">Startup Operations & CS</h3>
+              <p class="text-sm font-semibold text-indigo-400 mb-4 z-10">다양한 스타트업 운영팀 경험</p>
+              <ul class="space-y-2 text-sm text-slate-400 z-10 flex-grow">
+                  <li class="flex items-start gap-2">
+                      <i class="ri-check-line text-indigo-500 mt-1"></i>
+                      <span>여러 스타트업 운영팀을 거치며 <strong>비즈니스 전체를 조망하는 넓은 시야</strong> 보유</span>
+                  </li>
+                  <li class="flex items-start gap-2">
+                      <i class="ri-check-line text-indigo-500 mt-1"></i>
+                      <span>CS 업무를 통해 <strong>고객의 니즈와 불만</strong>을 직접 청취하고 해결</span>
+                  </li>
+                  <li class="flex items-start gap-2">
+                      <i class="ri-check-line text-indigo-500 mt-1"></i>
+                      <span>문제의 <strong>근본 원인(Root Cause)</strong>을 파악하여 프로세스 개선으로 연결</span>
+                  </li>
+              </ul>
+          </div>
+
+          <!-- Card 2: ISMS -->
+          <div class="glass-card p-8 rounded-3xl card-hover flex flex-col h-full relative group overflow-hidden">
+              <div class="absolute top-0 right-0 p-8 opacity-20 group-hover:scale-110 transition-transform">
+                  <i class="ri-shield-keyhole-line text-8xl text-emerald-500"></i>
+              </div>
+              <div class="w-12 h-12 rounded-xl bg-emerald-500/20 flex items-center justify-center mb-6 text-emerald-400 z-10">
+                <i class="ri-file-shield-2-line text-2xl"></i>
+              </div>
+              <h3 class="text-xl font-bold text-white mb-2 z-10">Security & Compliance</h3>
+              <p class="text-sm font-semibold text-emerald-400 mb-4 z-10">ISMS 인증 심사 준비 경험</p>
+              <ul class="space-y-2 text-sm text-slate-400 z-10 flex-grow">
+                  <li class="flex items-start gap-2">
+                      <i class="ri-check-line text-emerald-500 mt-1"></i>
+                      <span>정보보호 관리체계(ISMS) 인증을 위한 <strong>정책 수립 및 문서화</strong> 과정 참여</span>
+                  </li>
+                  <li class="flex items-start gap-2">
+                      <i class="ri-check-line text-emerald-500 mt-1"></i>
+                      <span>비록 인증 취득 완료까진 못했으나, <strong>통제 항목과 보안 원칙</strong>을 체화</span>
+                  </li>
+                  <li class="flex items-start gap-2">
+                      <i class="ri-check-line text-emerald-500 mt-1"></i>
+                      <span>서비스 설계 시 <strong>보안/개인정보 리스크</strong>를 사전에 식별하고 방지하는 감각 보유</span>
+                  </li>
+              </ul>
+          </div>
+
+          <!-- Card 3: Creative Tools -->
+          <div class="glass-card p-8 rounded-3xl card-hover flex flex-col h-full relative group overflow-hidden">
+              <div class="absolute top-0 right-0 p-8 opacity-20 group-hover:scale-110 transition-transform">
+                  <i class="ri-pantone-line text-8xl text-purple-500"></i>
+              </div>
+              <div class="w-12 h-12 rounded-xl bg-purple-500/20 flex items-center justify-center mb-6 text-purple-400 z-10">
+                <i class="ri-pencil-ruler-2-line text-2xl"></i>
+              </div>
+              <h3 class="text-xl font-bold text-white mb-2 z-10">Design & Creative Tools</h3>
+              <p class="text-sm font-semibold text-purple-400 mb-4 z-10">올라운더 플레이어</p>
+              <ul class="space-y-2 text-sm text-slate-400 z-10 flex-grow">
+                  <li class="flex items-start gap-2">
+                      <i class="ri-check-line text-purple-500 mt-1"></i>
+                      <span><strong>Figma, Adobe Suite</strong>를 활용한 UI/UX 디자인 및 리소스 제작 능숙</span>
+                  </li>
+                  <li class="flex items-start gap-2">
+                      <i class="ri-check-line text-purple-500 mt-1"></i>
+                      <span><strong>노코드(No-code) 웹 제작 툴</strong>을 활용해 아이디어를 즉시 시각화 및 배포</span>
+                  </li>
+                  <li class="flex items-start gap-2">
+                      <i class="ri-check-line text-purple-500 mt-1"></i>
+                      <span><strong>AI 이미지 생성</strong> 및 활용을 통해 디자인 리소스 제작 속도와 퀄리티 향상</span>
+                  </li>
+              </ul>
+          </div>
+      </div>
+  </section>
+
+  <!-- Footer / Contact -->
+  <section id="contact" class="py-20 px-4 text-center">
+    <div class="max-w-2xl mx-auto glass-card rounded-3xl p-10 shadow-2xl relative overflow-hidden">
+        <div class="absolute inset-0 bg-gradient-to-br from-indigo-500/10 via-transparent to-emerald-500/10 opacity-50"></div>
+        <div class="relative z-10">
+            <h2 class="text-3xl font-bold text-white mb-4">Let’s build with speed & clarity.</h2>
+            <p class="text-slate-400 mb-8">가장 빠른 이해는 데모로 확인하는 것입니다.</p>
+            
+            <div class="flex flex-wrap justify-center gap-4 mb-10">
+                <a href="apps/locker_manager.html" class="px-6 py-3 bg-white text-slate-950 font-bold rounded-xl hover:bg-slate-200 transition-colors">
+                    Locker Demo
+                </a>
+                <a href="apps/fitness_manager.html" class="px-6 py-3 bg-slate-800 border border-slate-700 text-white font-bold rounded-xl hover:bg-slate-700 transition-colors">
+                    Fitness Demo
+                </a>
+            </div>
+
+            <div class="border-t border-white/10 pt-8">
+                <div class="text-lg font-bold text-white">최준우</div>
+                <div class="text-slate-500 font-mono text-sm mt-1">superkawaiicat2025@gmail.com</div>
+            </div>
+        </div>
+    </div>
+    <footer class="mt-12 text-xs text-slate-600">
+        © 2025 Junwoo Choi. AI-Native Product Builder.
+    </footer>
+  </section>
+
+</body>
+</html>

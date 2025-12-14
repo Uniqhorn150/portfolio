@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>피트니스 통합 관리자 V18 (특수환불 휴회차감)</title>
+    <style>
+        :root {
+            --primary: #2c3e50;
+            --accent: #e74c3c; /* 환불 */
+            --transfer: #27ae60; /* 양도 */
+            --upgrade: #673ab7; /* 업그레이드 */
+            --special: #e65100; /* 특수 - 오렌지 */
+            --bg: #f0f2f5;
+            --card: #ffffff;
+            --border: #ced4da;
+            --blue: #2980b9;
+        }
+        body {
+            font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
+            background: var(--bg);
+            margin: 0;
+            padding: 20px;
+            color: #333;
+            display: flex;
+            justify-content: center;
+        }
+        .container {
+            width: 100%;
+            max-width: 700px;
+            background: var(--card);
+            border-radius: 16px;
+            box-shadow: 0 4px 25px rgba(0,0,0,0.08);
+            padding: 30px;
+            box-sizing: border-box;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* 탭 네비게이션 */
+        .tab-nav {
+            display: flex;
+            background: #ecf0f1;
+            border-radius: 10px;
+            padding: 5px;
+            margin-bottom: 25px;
+            gap: 5px;
+            flex-wrap: wrap; 
+        }
+        .tab-btn {
+            flex: 1;
+            padding: 10px 5px;
+            border: none;
+            background: transparent;
+            font-size: 13px;
+            font-weight: bold;
+            color: #7f8c8d;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: 0.2s;
+            white-space: nowrap;
+            min-width: 80px;
+        }
+        .tab-btn.active.refund { background: white; color: var(--accent); box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .tab-btn.active.transfer { background: white; color: var(--transfer); box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .tab-btn.active.upgrade { background: white; color: var(--upgrade); box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .tab-btn.active.special { background: white; color: var(--special); box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+
+        /* 공통 스타일 */
+        h2 { text-align: center; margin: 0 0 20px 0; letter-spacing: -1px; }
+        
+        .section-box {
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            background-color: #fff;
+            position: relative;
+        }
+        .section-badge {
+            position: absolute; top: -12px; left: 15px;
+            padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: bold; color: white;
+        }
+        .badge-refund { background: var(--primary); }
+        .badge-transfer { background: var(--transfer); }
+        .badge-upgrade { background: var(--upgrade); }
+        .badge-special { background: var(--special); }
+
+        .row { display: flex; gap: 15px; margin-bottom: 15px; align-items: flex-end; }
+        .col { flex: 1; }
+        
+        label { display: block; font-size: 13px; font-weight: 700; color: #555; margin-bottom: 6px; }
+        
+        input:not([type="checkbox"]), select {
+            width: 100%; padding: 12px; border: 1px solid var(--border);
+            border-radius: 8px; font-size: 15px; box-sizing: border-box; transition: 0.2s;
+        }
+        input[type="checkbox"] { width: 20px; height: 20px; cursor: pointer; margin: 0; accent-color: var(--primary); }
+        input:focus { outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px rgba(41, 128, 185, 0.1); }
+        input[readonly] { background-color: #f8f9fa; cursor: default; }
+
+        .btn-action {
+            width: 100%; padding: 18px; color: white;
+            font-size: 18px; font-weight: bold; border: none; border-radius: 10px;
+            cursor: pointer; transition: 0.2s; margin-top: 10px;
+        }
+        .btn-refund { background: var(--primary); }
+        .btn-refund:hover { background: #34495e; }
+        .btn-transfer { background: var(--transfer); }
+        .btn-transfer:hover { background: #219150; }
+        .btn-upgrade { background: var(--upgrade); }
+        .btn-upgrade:hover { background: #512da8; }
+        .btn-special { background: var(--special); }
+        .btn-special:hover { background: #e64a19; }
+
+        .btn-reset {
+            background: #ecf0f1; border: 1px solid #bdc3c7; color: #7f8c8d;
+            padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: bold;
+            position: absolute; right: 30px; top: 30px; z-index: 10;
+        }
+        .btn-reset:hover { background: #bdc3c7; color: white; }
+
+        .result-area {
+            background-color: #fff; border: 2px solid #333;
+            border-radius: 12px; padding: 25px; margin-top: 25px; display: none;
+        }
+        .res-row { display: flex; justify-content: space-between; margin-bottom: 8px; }
+        .res-val { font-weight: bold; font-size: 18px; }
+
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        /* 환불 스타일 */
+        .pause-area { background: #f3e5f5; border: 1px dashed #ab47bc; padding: 15px; border-radius: 8px; margin-bottom: 10px; }
+        .calc-log { background: #2c3e50; color: #ecf0f1; padding: 15px; border-radius: 8px; font-size: 12px; font-family: monospace; max-height: 150px; overflow-y: auto; margin-top: 10px;}
+        .option-group { border: 1px solid #eee; padding: 10px; border-radius: 8px; margin-bottom: 8px; background: #fafafa; }
+        .option-detail { display: none; margin-top: 10px; border-top: 1px dashed #ddd; padding-top: 10px; }
+        .option-group.active { background: #fff; border-color: #bbb; }
+        .option-group.active .option-detail { display: block; }
+
+        /* 양도/업그레이드 스타일 */
+        .transfer-highlight { color: var(--transfer); font-weight: bold; }
+        .upgrade-highlight { color: var(--upgrade); font-weight: bold; }
+        .arrow-divider { text-align: center; color: #bbb; font-size: 20px; margin: 10px 0; }
+        .pause-adjust-box { background: #e8f5e9; border: 1px solid #c8e6c9; padding: 15px; border-radius: 8px; margin-bottom: 15px; display: none; }
+        .pause-adjust-box.active { display: block; }
+        .tr-opt-box { background: #f9fbe7; border: 1px solid #dce775; padding: 10px; border-radius: 6px; margin-bottom: 5px; }
+        .tr-opt-box.active { background: #f0f4c3; border-color: #c0ca33; }
+        .tr-opt-input { display:none; margin-top:5px; }
+        
+        .flex-label { display: flex; align-items: center; cursor: pointer; margin: 0; width: 100%; }
+        .flex-label.between { justify-content: space-between; }
+        .flex-label.start { justify-content: flex-start; gap: 8px; }
+        .no-wrap { white-space: nowrap; }
+
+        /* 업그레이드 전용 */
+        .mode-badge { display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; margin-bottom: 10px; }
+        .mode-month { background: #e3f2fd; color: #1976d2; border: 1px solid #bbdefb; }
+        .mode-standard { background: #ede7f6; color: #673ab7; border: 1px solid #d1c4e9; }
+        
+        /* 특수 환불 전용 */
+        .sp-divider { border-top: 2px dashed #ffe0b2; margin: 20px 0; position: relative; }
+        .sp-divider::after { content: '➕'; position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background: #fff; padding: 0 10px; color: #e65100; font-weight: bold; }
+        .editable-month { border: 2px solid #e65100; color: #e65100; font-weight: bold; width: 60px !important; text-align: center; padding: 5px !important; }
+        
+        .extra-deduct-box { background: #ffebee; border: 1px solid #ffcdd2; padding: 10px; border-radius: 8px; margin-top: 10px; }
+        .detail-box { border-top: 1px dashed #ccc; margin: 10px 0; padding: 10px 0; font-size: 13px; color: #555; }
+        .detail-row { display: flex; justify-content: space-between; margin-bottom: 5px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <button class="btn-reset" onclick="resetCurrentTab()">🔄 초기화</button>
+    
+    <h2 id="page-title">피트니스 통합 관리자</h2>
+
+    <!-- 탭 메뉴 -->
+    <div class="tab-nav">
+        <button class="tab-btn active refund" onclick="switchTab('refund')">💸 환불</button>
+        <button class="tab-btn transfer" onclick="switchTab('transfer')">🤝 양도/양수</button>
+        <button class="tab-btn upgrade" onclick="switchTab('upgrade')">⚡ 업그레이드</button>
+        <button class="tab-btn special" onclick="switchTab('special')">⚠️ 특수 환불</button>
+    </div>
+
+    <!-- TAB 1: 환불 -->
+    <div id="tab-refund" class="tab-content active">
+        <!-- 기존 환불 코드 -->
+        <div class="section-box">
+            <div class="section-badge badge-refund">STEP 1. 기간 및 휴회 설정</div>
+            <div class="row">
+                <div class="col"><label>시작일</label><input type="date" id="rf-start" onchange="runRefundSim()"></div>
+                <div class="col"><label>해지일</label><input type="date" id="rf-end" onchange="runRefundSim()"></div>
+            </div>
+            <div class="pause-area">
+                <label style="color:#8e44ad;">⏸ 휴회 기간 (선택)</label>
+                <div class="row" style="margin-bottom:0;">
+                    <div class="col"><input type="date" id="rf-p-start" onchange="runRefundSim()"><div style="font-size:11px; color:#666;">시작일</div></div>
+                    <div class="col"><input type="date" id="rf-p-end" onchange="runRefundSim()"><div style="font-size:11px; color:#666;">종료일</div></div>
+                </div>
+            </div>
+            <div class="calc-log" id="rf-log">📅 날짜를 입력하면 회차 계산 로그가 표시됩니다.</div>
+            <input type="hidden" id="rf-used-months" value="0">
+        </div>
+        <div class="section-box">
+            <div class="section-badge badge-refund" style="background:var(--accent);">STEP 2. 금액 및 옵션</div>
+            <div class="row">
+                <div class="col"><label>회원권 (정상가 자동)</label><select id="rf-type" onchange="setRefundPreset()"><option value="H3">H 3개월</option><option value="H6">H 6개월</option><option value="H12">H 12개월</option><option value="HG3">HG 3개월</option><option value="HG6">HG 6개월</option><option value="HG12">HG 12개월</option></select></div>
+                <div class="col"><label>월 정상가</label><input type="number" id="rf-norm-price" value="156000"></div>
+            </div>
+            <div class="row"><div class="col"><label>실제 결제 금액</label><input type="number" id="rf-paid" placeholder="할인가 입력"></div></div>
+            <hr style="border:0; border-top:1px dashed #ddd; margin:15px 0;">
+            <div class="option-group" id="grp-lk"><label class="flex-label between"><span class="no-wrap" style="font-size:13px; font-weight:bold;">개인락카</span><input type="checkbox" id="chk-lk" onchange="toggleOpt('lk')"></label><div class="option-detail"><div class="row"><div class="col"><input type="number" id="pay-lk" placeholder="결제액"></div><div class="col"><input type="number" id="norm-lk" value="10000"></div></div></div></div>
+            <div class="option-group" id="grp-gf"><label class="flex-label between"><span class="no-wrap" style="font-size:13px; font-weight:bold;">골프락카</span><input type="checkbox" id="chk-gf" onchange="toggleOpt('gf')"></label><div class="option-detail"><div class="row"><div class="col"><input type="number" id="pay-gf" placeholder="결제액"></div><div class="col"><input type="number" id="norm-gf" value="20000"></div></div></div></div>
+            <div class="option-group" id="grp-un"><label class="flex-label between"><span class="no-wrap" style="font-size:13px; font-weight:bold;">운동복</span><input type="checkbox" id="chk-un" onchange="toggleOpt('un')"></label><div class="option-detail"><div class="row"><div class="col"><input type="number" id="pay-un" placeholder="결제액"></div><div class="col"><input type="number" id="norm-un" value="10000"></div></div></div></div>
+            <div class="extra-deduct-box">
+                <label class="flex-label start" style="margin-bottom:5px;"><input type="checkbox" id="chk-deduct-gift" onchange="calcRefund()"><span style="color:#c62828;">🎁 사은품 공제 (-50,000원)</span></label>
+                <label class="flex-label start"><input type="checkbox" id="chk-deduct-ot" onchange="calcRefund()"><span style="color:#c62828;">💪 PT(OT) 공제 (-50,000원)</span></label>
+            </div>
+        </div>
+        <button class="btn-action btn-refund" onclick="calcRefund()">💳 카드 환불 계산하기</button>
+        <div class="result-area" id="res-refund">
+            <h3 style="margin-top:0; text-align:center; border-bottom:1px solid #eee; padding-bottom:10px;">환불 명세서</h3>
+            <div class="res-row"><span style="color:#2980b9;">1. 전체 취소 금액</span><span class="res-val" id="val-cancel">0원</span></div>
+            <div class="res-row"><span style="color:#c0392b;">2. 재결제 금액 (공제 총액)</span><span class="res-val" id="val-repay">0원</span></div>
+            <div class="detail-box">
+                <div class="detail-row"><span>ㄴ 총 위약금 (10%)</span><span id="dtl-rf-penalty">0</span></div>
+                <div class="detail-row"><span>ㄴ 회원권 이용료</span><span id="dtl-rf-usage">0</span></div>
+                <div class="detail-row" id="row-rf-opt" style="display:none;"><span>ㄴ 옵션 이용료</span><span id="dtl-rf-opt">0</span></div>
+                <div class="detail-row" id="row-rf-extra" style="display:none; color:#c62828;"><span>ㄴ 기타 공제(사은품/OT)</span><span id="dtl-rf-extra">0</span></div>
+            </div>
+            <div style="background:#f8f9fa; padding:10px; margin-top:5px; border-radius:5px; font-size:12px; color:#555;" id="script-refund"></div>
+        </div>
+    </div>
+
+    <!-- TAB 2: 양도 -->
+    <div id="tab-transfer" class="tab-content">
+        <!-- 기존 양도 코드 유지 -->
+        <div class="section-box">
+            <div class="section-badge badge-transfer">STEP 1. 양도자 잔여일</div>
+            <div class="row"><div class="col"><label>양도 기준일</label><input type="date" id="tr-date" onchange="calcTransferDays()"></div></div>
+            <div style="border-left:4px solid #2ecc71; padding-left:10px; margin-bottom:15px;">
+                <label style="margin-bottom:5px;">회원권 전산 만료일</label>
+                <div class="row" style="margin-bottom:5px;"><div class="col"><input type="date" id="tr-old-end" onchange="calcTransferDays()"></div></div>
+                <label class="flex-label start" style="margin-bottom: 5px;"><input type="checkbox" id="chk-pause-adjust" onchange="togglePauseAdjust()"> <span style="font-size:13px; color:#2e7d32;">➕ 휴회 미반영 보정</span></label>
+                <div id="pause-adjust-area" class="pause-adjust-box" style="margin-top:5px;"><div class="row" style="margin:0;"><div class="col"><input type="number" id="tr-pause-days" placeholder="휴회 일수" oninput="calcTransferDays()"></div></div></div>
+                <div class="row" style="margin-top:10px; align-items:center;"><div class="col"><label>남은 휴회 횟수</label><input type="number" id="tr-pause-count" placeholder="예: 1"></div><div class="col" style="padding-bottom:10px; font-size:12px; color:#666;">* 양수자 승계 시 기재됨</div></div>
+                <div style="margin-top:10px; font-size:14px; border-top:1px dashed #eee; padding-top:10px;">👉 회원권 잔여: <strong id="tr-remain-days" style="color:#2ecc71; font-size:16px;">0</strong>일</div>
+            </div>
+            <div style="border-top:1px dashed #ddd; padding-top:10px;">
+                <label style="margin-bottom:8px;">옵션 상품 양도 (선택)</label>
+                <div class="tr-opt-box" id="box-tr-lk"><label class="flex-label between"><span class="no-wrap">🔒 개인락카</span><input type="checkbox" id="chk-tr-lk" onchange="toggleTrOpt('lk')"></label><div class="tr-opt-input" id="inp-tr-lk"><label style="font-size:11px;">현재 만료일</label><input type="date" id="end-tr-lk"></div></div>
+                <div class="tr-opt-box" id="box-tr-gf"><label class="flex-label between"><span class="no-wrap">⛳ 골프락카</span><input type="checkbox" id="chk-tr-gf" onchange="toggleTrOpt('gf')"></label><div class="tr-opt-input" id="inp-tr-gf"><label style="font-size:11px;">현재 만료일</label><input type="date" id="end-tr-gf"></div></div>
+                <div class="tr-opt-box" id="box-tr-un"><label class="flex-label between"><span class="no-wrap">👕 운동복</span><input type="checkbox" id="chk-tr-un" onchange="toggleTrOpt('un')"></label><div class="tr-opt-input" id="inp-tr-un"><label style="font-size:11px;">현재 만료일</label><input type="date" id="end-tr-un"></div></div>
+            </div>
+        </div>
+        <div class="arrow-divider">⬇ 양수자에게 승계 ⬇</div>
+        <div class="section-box">
+            <div class="section-badge badge-transfer" style="background:#2ecc71;">STEP 2. 양수자 일정</div>
+            <div class="row"><div class="col"><label>양수자 시작일</label><input type="date" id="tr-new-start"></div><div class="col"><label>양도비 (고정 5만원)</label><input type="number" id="tr-fee" value="50000"></div></div>
+        </div>
+        <button class="btn-action btn-transfer" onclick="calcTransferResult()">🤝 양도 처리 및 결과보기</button>
+        <div class="result-area" id="res-transfer">
+            <h3 style="margin-top:0; text-align:center; color:var(--transfer);">양도/양수 확정 정보</h3>
+            <div class="res-row" style="border-bottom:2px solid #eee; padding-bottom:5px; margin-bottom:10px;"><span>양수자 시작일</span><span class="res-val" id="res-tr-start">-</span></div>
+            <div id="transfer-result-list"></div>
+            <div style="background:#f1f8e9; padding:15px; margin-top:15px; border-radius:8px; font-size:13px; color:#33691e; line-height:1.5;">
+                <strong>[안내 멘트]</strong><br>
+                양도자님의 잔여 기간 <strong id="txt-remain">0일</strong>(휴회보정 포함)을 양수자님께 승계합니다.<br>
+                양수자님은 <strong><span id="txt-start">0000-00-00</span></strong>부터 이용하시게 되며,<br>
+                회원권 및 각 옵션의 만료일은 위와 같습니다.<br>
+                <strong style="display:block; margin-top:5px;">회원권 최종 만료일: <span id="txt-end">0000-00-00</span></strong>
+                <div id="txt-fee-area" style="margin-top:8px; border-top:1px dashed #a5d6a7; padding-top:8px;">* 양도비 <span id="txt-fee" style="font-weight:bold;">50,000원</span> 결제 필요</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB 3: 업그레이드 -->
+    <div id="tab-upgrade" class="tab-content">
+        <!-- 기존 업그레이드 코드 -->
+        <div class="section-box">
+            <div class="section-badge badge-upgrade">STEP 1. 기존 회원권 상태</div>
+            <div class="row"><div class="col"><label>기존 시작일</label><input type="date" id="up-start" onchange="calcUpgradeMetrics()"></div><div class="col"><label>기존 만료일</label><input type="date" id="up-end" onchange="calcUpgradeMetrics()"></div></div>
+            <div class="row" style="background:#f3e5f5; padding:10px; border-radius:8px; margin-bottom:10px;"><div class="col"><label style="color:#673ab7;">프로모션 무료 기간 (일)</label><input type="number" id="up-service-days" value="0" placeholder="0" oninput="calcUpgradeMetrics()"><div style="font-size:11px; color:#666; margin-top:3px;">* 무료 기간은 가입 초기에 우선 소진(차감)됩니다.</div></div></div>
+            <div class="row"><div class="col"><label>기존 결제 금액</label><input type="number" id="up-paid" placeholder="예: 660000"></div></div>
+            <div id="up-status-box" style="margin-top:10px; display:none;"><div id="up-mode-badge" class="mode-badge mode-standard"></div><div style="font-size:14px; line-height:1.6;">경과일: <span id="up-used-days">0</span>일 / 총 잔여: <span id="up-total-remain">0</span>일<br><span style="color:#673ab7;">(이미 소진된 무료기간 제외)</span><br>👉 <strong>유료 잔여일: <span id="up-billable-days" style="color:#673ab7; font-size:18px;">0</span>일</strong></div></div>
+        </div>
+        <div class="arrow-divider" style="color:#673ab7;">⬇ 차액 계산 ⬇</div>
+        <div class="section-box">
+            <div class="section-badge badge-upgrade" style="background:#9575cd;">STEP 2. 신규 상품 정보</div>
+            <div class="row"><div class="col"><label>신규 회원권 정상가</label><input type="number" id="up-new-price" placeholder="예: 990000"></div></div>
+            <div id="up-discount-area" style="display:none; background:#e8eaf6; padding:10px; border-radius:6px; margin-top:5px;"><label class="flex-label start"><input type="checkbox" id="chk-up-discount" onchange="calcUpgradeCost()"> <span style="color:#3f51b5;">관리자 승인 20% 할인 적용 (6개월 미만)</span></label></div>
+        </div>
+        <button class="btn-action btn-upgrade" onclick="calcUpgradeCost()">⚡ 차액 계산하기</button>
+        <div class="result-area" id="res-upgrade">
+            <h3 style="margin-top:0; text-align:center; color:var(--upgrade);">변경(업그레이드) 명세서</h3>
+            <div id="up-calc-detail" style="font-size:12px; color:#555; background:#f5f5f5; padding:10px; border-radius:6px; margin-bottom:15px; display:none;"><strong>[계산식 상세]</strong><br>A (새 하루치): <span id="val-a">0</span>원<br>B (헌 하루치): <span id="val-b">0</span>원<br>차액 (A-B) × <span id="val-days">0</span>일 = <span id="val-res">0</span>원</div>
+            <div class="res-row"><span class="upgrade-highlight" style="font-size:20px;">최종 결제 차액</span><span class="res-val upgrade-highlight" style="font-size:24px;" id="res-up-final">0원</span></div>
+            <div style="background:#f3e5f5; padding:15px; margin-top:15px; border-radius:8px; font-size:13px; color:#4a148c; line-height:1.5;"><strong>[안내 멘트]</strong><br><span id="txt-up-method">정책에 따라 일할 차액을 계산하였습니다.</span><br>기존 납부액과의 차액인 <strong><span id="txt-up-final">0원</span></strong>을 결제하시면 변경 처리됩니다.</div>
+        </div>
+    </div>
+
+    <!-- TAB 4: 특수(복합) 환불 -->
+    <div id="tab-special" class="tab-content">
+        <!-- 기존 특수 환불 코드 -->
+        <div style="background:#fff3e0; padding:10px; border-radius:8px; margin-bottom:20px; font-size:13px; color:#e65100; border:1px solid #ffe0b2;">
+            <strong>📢 사용법:</strong> 날짜 입력 시 1차 자동 계산됩니다.<br>※ 팀장님 재량이나 규격 외 상황 시 <strong>개월 수를 직접 수정</strong>하세요.<br>※ 휴회 기간 입력 시 자동으로 개월 수에서 차감됩니다.
+        </div>
+        <div class="section-box">
+            <div class="section-badge badge-special">구간 A: 회원권 변경 전 (과거)</div>
+            <div class="row"><div class="col"><label>최초 시작일</label><input type="date" id="sp-start" onchange="runSpecialSim()"></div><div class="col"><label>변경(업그레이드)일</label><input type="date" id="sp-change" onchange="runSpecialSim()"></div></div>
+            <div class="row"><div class="col"><label>당시 회원권 (정상가 기준)</label><select id="sp-type-a" onchange="calcSpecialCost()"><option value="H12">H 12개월 (월 117,000)</option><option value="H6">H 6개월 (월 143,000)</option><option value="H3">H 3개월 (월 156,000)</option><option value="HG12">HG 12개월 (월 181,000)</option><option value="HG6">HG 6개월 (월 230,000)</option><option value="HG3">HG 3개월 (월 283,000)</option></select></div></div>
+            <div class="row" style="background:#fff3e0; padding:8px; border-radius:6px; margin-top:5px;"><div class="col"><label style="font-size:12px; color:#e65100;">A구간 휴회 (일)</label><input type="number" id="sp-pause-a" placeholder="일수 입력" style="height:35px; font-size:14px;" oninput="runSpecialSim()"></div></div>
+        </div>
+        <div class="sp-divider"></div>
+        <div class="section-box">
+            <div class="section-badge badge-special" style="background:#ef6c00;">구간 B: 회원권 변경 후 (현재)</div>
+            <div class="row"><div class="col"><label>변경일 (자동입력)</label><input type="text" id="sp-change-display" readonly placeholder="구간 A 입력 시 자동"></div><div class="col"><label>환불 요청일 (오늘)</label><input type="date" id="sp-end" onchange="runSpecialSim()"></div></div>
+            <div class="row"><div class="col"><label>현재 회원권 (정상가 기준)</label><select id="sp-type-b" onchange="calcSpecialCost()"><option value="HG12">HG 12개월 (월 181,000)</option><option value="HG6">HG 6개월 (월 230,000)</option><option value="HG3">HG 3개월 (월 283,000)</option><option value="H12">H 12개월 (월 117,000)</option><option value="H6">H 6개월 (월 143,000)</option><option value="H3">H 3개월 (월 156,000)</option></select></div></div>
+            <div class="row" style="background:#fff3e0; padding:8px; border-radius:6px; margin-top:5px;"><div class="col"><label style="font-size:12px; color:#e65100;">B구간 휴회 (일)</label><input type="number" id="sp-pause-b" placeholder="일수 입력" style="height:35px; font-size:14px;" oninput="runSpecialSim()"></div></div>
+        </div>
+        <div class="section-box">
+            <div class="section-badge badge-special" style="background:#bf360c;">STEP 3. 결제 및 옵션</div>
+            <label style="margin-bottom:8px; font-weight:bold; color:#d84315;">옵션 상품 (전체 기간 이용)</label>
+            <div class="option-group" id="sp-grp-lk"><label class="flex-label between"><span class="no-wrap" style="font-size:13px; font-weight:bold;">개인락카</span><input type="checkbox" id="sp-chk-lk" onchange="toggleSpOpt('lk')"></label><div class="option-detail"><div class="row"><div class="col"><input type="number" id="sp-pay-lk" placeholder="결제액" oninput="calcSpecialCost()"></div><div class="col"><input type="number" id="sp-norm-lk" value="10000" oninput="calcSpecialCost()"></div></div></div></div>
+            <div class="option-group" id="sp-grp-gf"><label class="flex-label between"><span class="no-wrap" style="font-size:13px; font-weight:bold;">골프락카</span><input type="checkbox" id="sp-chk-gf" onchange="toggleSpOpt('gf')"></label><div class="option-detail"><div class="row"><div class="col"><input type="number" id="sp-pay-gf" placeholder="결제액" oninput="calcSpecialCost()"></div><div class="col"><input type="number" id="sp-norm-gf" value="20000" oninput="calcSpecialCost()"></div></div></div></div>
+            <div class="option-group" id="sp-grp-un"><label class="flex-label between"><span class="no-wrap" style="font-size:13px; font-weight:bold;">운동복</span><input type="checkbox" id="sp-chk-un" onchange="toggleSpOpt('un')"></label><div class="option-detail"><div class="row"><div class="col"><input type="number" id="sp-pay-un" placeholder="결제액" oninput="calcSpecialCost()"></div><div class="col"><input type="number" id="sp-norm-un" value="10000" oninput="calcSpecialCost()"></div></div></div></div>
+            
+            <div class="extra-deduct-box" style="margin-top:15px; border-color:#ffccbc; background:#fffbe6;">
+                <label class="flex-label start" style="margin-bottom:5px;"><input type="checkbox" id="sp-chk-deduct-gift" onchange="calcSpecialCost()"><span style="color:#d84315;">🎁 사은품 공제 (-50,000원)</span></label>
+                <label class="flex-label start"><input type="checkbox" id="sp-chk-deduct-ot" onchange="calcSpecialCost()"><span style="color:#d84315;">💪 PT(OT) 공제 (-50,000원)</span></label>
+            </div>
+            <hr style="border:0; border-top:1px dashed #ddd; margin:15px 0;">
+            <div class="row"><div class="col"><label>① 최초 결제금액</label><input type="number" id="sp-pay-a" placeholder="예: 987000" oninput="calcSpecialCost()"></div><div class="col"><label>② 추가 결제금액</label><input type="number" id="sp-pay-b" placeholder="예: 615600" oninput="calcSpecialCost()"></div></div>
+        </div>
+        <div class="result-area" id="res-special" style="display:block; border-color:#e65100;">
+            <h3 style="margin-top:0; text-align:center; color:#e65100;">복합 환불 명세서</h3>
+            <div class="res-row"><span style="color:#2980b9;">총 결제 합계</span><span class="res-val" id="sp-total-paid">0원</span></div>
+            <div style="border-top:1px dashed #ccc; margin:10px 0; padding:10px 0;">
+                <div class="res-row" style="font-size:14px; color:#555;"><span>(-) 위약금 (총액의 10%)</span><span id="sp-penalty">0원</span></div>
+                <div class="res-row" style="font-size:14px; color:#d84315; display:none;" id="sp-extra-row"><span>(-) 기타 공제(사은품/OT)</span><span id="sp-extra-deduct">0원</span></div>
+                <div class="res-row" style="align-items:center; background:#fff3e0; padding:5px; border-radius:5px; margin-bottom:8px;">
+                    <span style="font-size:14px; font-weight:bold; color:#e65100;">(-) 구간 A 공제월</span>
+                    <input type="number" id="sp-months-a" class="editable-month" value="0" oninput="syncOptionMonths()">
+                    <span id="sp-deduct-a" style="margin-left:auto;">0원</span>
+                </div>
+                <div class="res-row" style="align-items:center; background:#fff3e0; padding:5px; border-radius:5px; margin-bottom:8px;">
+                    <span style="font-size:14px; font-weight:bold; color:#e65100;">(-) 구간 B 공제월</span>
+                    <input type="number" id="sp-months-b" class="editable-month" value="0" oninput="syncOptionMonths()">
+                    <span id="sp-deduct-b" style="margin-left:auto;">0원</span>
+                </div>
+                <div class="res-row" id="sp-opt-row" style="display:none; align-items:center; background:#fff8e1; padding:5px; border-radius:5px;">
+                    <span style="font-size:14px; font-weight:bold; color:#f57f17;">(-) 옵션 공제월</span>
+                    <input type="number" id="sp-months-opt" class="editable-month" style="border-color:#f57f17; color:#f57f17;" value="0" oninput="calcSpecialCost()">
+                    <span id="sp-opt-deduct" style="margin-left:auto;">0원</span>
+                </div>
+            </div>
+            <div class="res-row"><span style="color:#e65100; font-size:20px;">최종 환불 금액</span><span class="res-val" style="color:#e65100; font-size:24px;" id="sp-final">0원</span></div>
+            <div style="margin-top:15px; font-size:12px; color:#666; background:#fff3e0; padding:10px; border-radius:5px;">* <strong>Tip:</strong> 주황색 박스 안의 숫자를 수정하면 공제 금액이 즉시 재계산됩니다.<br>* 휴회 일수를 입력하면 해당 구간의 개월 수가 자동 차감됩니다.</div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    window.onload = function() {
+        resetCurrentTab();
+        document.getElementById('sp-change').addEventListener('change', function() {
+            document.getElementById('sp-change-display').value = this.value;
+        });
+        document.getElementById('sp-end').value = new Date().toISOString().substring(0, 10);
+    };
+
+    function switchTab(tab) {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelector(`.tab-btn.${tab}`).classList.add('active');
+
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        document.getElementById(`tab-${tab}`).classList.add('active');
+
+        const title = document.getElementById('page-title');
+        title.innerText = '피트니스 통합 관리자'; 
+        if(tab === 'refund') title.style.color = '#2c3e50';
+        else if(tab === 'transfer') title.style.color = '#27ae60';
+        else if(tab === 'upgrade') title.style.color = '#673ab7';
+        else title.style.color = '#e65100'; 
+        
+        resetCurrentTab();
+    }
+
+    function resetCurrentTab() {
+        const activeTab = document.querySelector('.tab-content.active').id;
+        const today = new Date().toISOString().substring(0, 10);
+
+        if (activeTab === 'tab-refund') {
+            document.getElementById('rf-end').value = today;
+            document.getElementById('chk-deduct-gift').checked = false;
+            document.getElementById('chk-deduct-ot').checked = false;
+        } else if (activeTab === 'tab-transfer') {
+            document.getElementById('tr-date').value = today;
+            document.getElementById('tr-new-start').value = today;
+        } else if (activeTab === 'tab-upgrade') {
+            // ...
+        } else {
+            // 특수 환불 초기화
+            document.getElementById('sp-start').value = '';
+            document.getElementById('sp-change').value = '';
+            document.getElementById('sp-change-display').value = '';
+            document.getElementById('sp-end').value = today;
+            document.getElementById('sp-pay-a').value = '';
+            document.getElementById('sp-pay-b').value = '';
+            document.getElementById('sp-months-a').value = 0;
+            document.getElementById('sp-months-b').value = 0;
+            document.getElementById('sp-months-opt').value = 0;
+            document.getElementById('sp-pause-a').value = '';
+            document.getElementById('sp-pause-b').value = '';
+            
+            ['lk', 'gf', 'un'].forEach(code => {
+                document.getElementById('sp-chk-'+code).checked = false;
+                document.getElementById('sp-grp-'+code).classList.remove('active');
+                document.querySelector('#sp-grp-'+code+' .option-detail').style.display = 'none';
+                document.getElementById('sp-pay-'+code).value = '';
+            });
+            document.getElementById('sp-chk-deduct-gift').checked = false;
+            document.getElementById('sp-chk-deduct-ot').checked = false;
+            
+            calcSpecialCost();
+        }
+    }
+
+    function fmtNum(n) { return new Intl.NumberFormat('ko-KR').format(Math.floor(n)); }
+    function getDiffDays(start, end) { return Math.floor((end - start) / (1000 * 60 * 60 * 24)) + 1; }
+    function fmtDate(d) { return `${d.getFullYear()}-${('0'+(d.getMonth()+1)).slice(-2)}-${('0'+d.getDate()).slice(-2)}`; }
+
+    const REFUND_PRESETS = { 'H3': 156000, 'H6': 143000, 'H12': 117000, 'HG3': 283000, 'HG6': 230000, 'HG12': 181000 };
+
+    function setRefundPreset() { document.getElementById('rf-norm-price').value = REFUND_PRESETS[document.getElementById('rf-type').value]; }
+    function toggleOpt(id) { const grp = document.getElementById('grp-'+id); document.getElementById('chk-'+id).checked ? grp.classList.add('active') : grp.classList.remove('active'); }
+    
+    // [V16] 날짜 계산 (당일 포함)
+    function runRefundSim() { 
+        const sVal = document.getElementById('rf-start').value; const eVal = document.getElementById('rf-end').value;
+        if(!sVal || !eVal) return;
+        const start = new Date(sVal); const end = new Date(eVal);
+        const logBox = document.getElementById('rf-log');
+        const psVal = document.getElementById('rf-p-start').value; const peVal = document.getElementById('rf-p-end').value;
+        let pStart = psVal ? new Date(psVal) : null; let pEnd = peVal ? new Date(peVal) : null;
+        let pDays = (pStart && pEnd && pStart <= pEnd) ? getDiffDays(pStart, pEnd) : 0;
+        let logs = [`🔍 <strong>회차 분석</strong> (개시: ${fmtDate(start)})`];
+        if(pDays > 0) logs.push(`⏸ 휴회: ${fmtDate(pStart)}~${fmtDate(pEnd)} (${pDays}일)`);
+        
+        let monthCount = 1; let curStart = new Date(start); let finalMonths = 0;
+        
+        while(true) {
+            // [V16 변경점] tempEnd calculation: Start + 1 Month (No minus 1 day)
+            let tempEnd = new Date(curStart); 
+            tempEnd.setMonth(tempEnd.getMonth() + 1); 
+            // tempEnd.setDate(tempEnd.getDate() - 1); // 삭제됨: 당일 종료 로직
+
+            let ext = 0; if (pStart && pEnd && pStart <= tempEnd && pEnd >= curStart) { ext = pDays; }
+            let actEnd = new Date(tempEnd); actEnd.setDate(actEnd.getDate() + ext);
+            let msg = `${monthCount}회차: ${fmtDate(curStart)} ~ ${fmtDate(actEnd)}`;
+            if(ext > 0) msg += ` <span style="color:#e67e22">(+휴회)</span>`;
+            
+            if (end <= actEnd) {
+                logs.push(`<span style="color:#f1c40f; font-weight:bold;">▶ ${msg}</span>`);
+                logs.push(`✅ 해지일 포함. <strong>총 ${monthCount}개월 공제</strong>`);
+                finalMonths = monthCount; break;
+            } else {
+                logs.push(msg); monthCount++; curStart = new Date(actEnd); curStart.setDate(curStart.getDate() + 1);
+                if(monthCount > 36) break;
+            }
+        }
+        logBox.innerHTML = logs.map(l => `<div>${l}</div>`).join('');
+        document.getElementById('rf-used-months').value = finalMonths;
+    }
+
+    function calcRefund() {
+        const months = Number(document.getElementById('rf-used-months').value);
+        if(months === 0) { alert("날짜를 먼저 입력해주세요."); return; }
+        const paid = Number(document.getElementById('rf-paid').value || 0);
+        const norm = Number(document.getElementById('rf-norm-price').value || 0);
+        
+        let memPenalty = paid * 0.1;
+        let memUsage = norm * months;
+        let optPaid = 0, optPenalty = 0, optUsage = 0;
+        let hasOpt = false;
+
+        ['lk', 'gf', 'un'].forEach(id => {
+            if(document.getElementById('chk-'+id).checked) {
+                hasOpt = true;
+                let p = Number(document.getElementById('pay-'+id).value || 0);
+                let n = Number(document.getElementById('norm-'+id).value || 0);
+                optPaid += p; 
+                optPenalty += p * 0.1;
+                optUsage += n * months;
+            }
+        });
+        
+        // 추가 공제
+        let extraDeduct = 0;
+        if(document.getElementById('chk-deduct-gift').checked) extraDeduct += 50000;
+        if(document.getElementById('chk-deduct-ot').checked) extraDeduct += 50000;
+
+        const totalCancel = paid + optPaid; 
+        const totalRepay = (memPenalty + memUsage + optPenalty + optUsage + extraDeduct);
+        
+        document.getElementById('val-cancel').innerText = fmtNum(totalCancel) + '원';
+        document.getElementById('val-repay').innerText = fmtNum(totalRepay) + '원';
+        
+        // [V17] 상세 내역 표시
+        document.getElementById('dtl-rf-penalty').innerText = fmtNum(memPenalty + optPenalty) + '원';
+        document.getElementById('dtl-rf-usage').innerText = fmtNum(memUsage) + '원';
+        
+        if(hasOpt) {
+            document.getElementById('row-rf-opt').style.display = 'flex';
+            document.getElementById('dtl-rf-opt').innerText = fmtNum(optUsage) + '원';
+        } else {
+            document.getElementById('row-rf-opt').style.display = 'none';
+        }
+
+        if(extraDeduct > 0) {
+            document.getElementById('row-rf-extra').style.display = 'flex';
+            document.getElementById('dtl-rf-extra').innerText = fmtNum(extraDeduct) + '원';
+        } else {
+            document.getElementById('row-rf-extra').style.display = 'none';
+        }
+        
+        let extraMsg = extraDeduct > 0 ? ` + 추가공제 ${fmtNum(extraDeduct)}원` : "";
+        document.getElementById('script-refund').innerHTML = `전체 ${fmtNum(totalCancel)}원 취소 후, 위약금+이용료${extraMsg} 합계 <strong>${fmtNum(totalRepay)}원</strong>을 재결제합니다.`;
+        document.getElementById('res-refund').style.display = 'block';
+    }
+
+    // [양도, 업그레이드 함수들 - 이전과 동일]
+    function togglePauseAdjust() { const box = document.getElementById('pause-adjust-area'); const chk = document.getElementById('chk-pause-adjust'); chk.checked ? box.classList.add('active') : (box.classList.remove('active'), document.getElementById('tr-pause-days').value = '', calcTransferDays()); }
+    function toggleTrOpt(code) { const chk = document.getElementById('chk-tr-' + code); const box = document.getElementById('box-tr-' + code); const inp = document.getElementById('inp-tr-' + code); if (chk.checked) { box.classList.add('active'); inp.style.display = 'block'; } else { box.classList.remove('active'); inp.style.display = 'none'; document.getElementById('end-tr-' + code).value = ''; } }
+    function calcTransferDays() { const oldEndVal = document.getElementById('tr-old-end').value; const trDateVal = document.getElementById('tr-date').value; if (!oldEndVal || !trDateVal) return; let oldEnd = new Date(oldEndVal); const trDate = new Date(trDateVal); const pauseDays = Number(document.getElementById('tr-pause-days').value || 0); if (pauseDays > 0) { oldEnd.setDate(oldEnd.getDate() + pauseDays); } const diffTime = oldEnd - trDate; let diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1; if (diffDays < 0) diffDays = 0; document.getElementById('tr-remain-days').innerText = diffDays; }
+    function calcTransferResult() { 
+        const trDateVal = document.getElementById('tr-date').value; const newStartVal = document.getElementById('tr-new-start').value; const memDays = Number(document.getElementById('tr-remain-days').innerText); const pauseCount = document.getElementById('tr-pause-count').value; 
+        if (!trDateVal || !newStartVal) { alert("날짜를 모두 입력해주세요."); return; }
+        const trDate = new Date(trDateVal); const newStart = new Date(newStartVal);
+        let html = ''; if (memDays > 0) { const memEnd = new Date(newStart); memEnd.setDate(memEnd.getDate() + memDays - 1); html += `<div class="res-row"><span>회원권 (${memDays}일)</span><span class="transfer-highlight">${fmtDate(memEnd)} 종료</span></div>`; } else { html += `<div class="res-row" style="color:#888;"><span>회원권</span><span>승계 기간 없음</span></div>`; }
+        if (pauseCount && Number(pauseCount) > 0) { html += `<div class="res-row" style="background:#f3e5f5; padding:5px; border-radius:4px; margin-top:-5px; margin-bottom:5px;"><span style="font-size:13px;">ㄴ 남은 휴회</span><span style="font-weight:bold; color:#8e44ad;">${pauseCount}회 승계됨</span></div>`; }
+        const opts = [{id:'lk', name:'개인락카'}, {id:'gf', name:'골프락카'}, {id:'un', name:'운동복'}];
+        opts.forEach(opt => { if(document.getElementById('chk-tr-'+opt.id).checked) { const endVal = document.getElementById('end-tr-'+opt.id).value; if(endVal) { const optEnd = new Date(endVal); let optDays = Math.floor((optEnd - trDate) / (1000 * 60 * 60 * 24)) + 1; if(optDays < 0) optDays = 0; if(optDays > 0) { const newOptEnd = new Date(newStart); newOptEnd.setDate(newOptEnd.getDate() + optDays - 1); html += `<div class="res-row"><span>${opt.name} (${optDays}일)</span><span style="font-weight:bold;">${fmtDate(newOptEnd)} 종료</span></div>`; } else { html += `<div class="res-row" style="color:#999;"><span>${opt.name}</span><span>기간 만료</span></div>`; } } } });
+        const listEl = document.getElementById('transfer-result-list'); if(listEl) listEl.innerHTML = html;
+        const resStartEl = document.getElementById('res-tr-start'); if(resStartEl) resStartEl.innerText = fmtDate(newStart);
+        const txtStartEl = document.getElementById('txt-start'); if(txtStartEl) txtStartEl.innerText = fmtDate(newStart);
+        const txtRemainEl = document.getElementById('txt-remain'); if(txtRemainEl) txtRemainEl.innerText = memDays + '일';
+        const txtEndEl = document.getElementById('txt-end'); if (txtEndEl) { if (memDays > 0) { const finalEnd = new Date(newStart); finalEnd.setDate(finalEnd.getDate() + memDays - 1); txtEndEl.innerText = fmtDate(finalEnd); } else { txtEndEl.innerText = "(회원권 없음)"; } }
+        const fee = Number(document.getElementById('tr-fee').value || 0); const feeArea = document.getElementById('txt-fee-area'); const txtFee = document.getElementById('txt-fee'); if (feeArea && txtFee) { if (fee > 0) { feeArea.style.display = 'block'; txtFee.innerText = fmtNum(fee) + '원'; } else { feeArea.style.display = 'none'; } }
+        document.getElementById('res-transfer').style.display = 'block';
+    }
+    function calcUpgradeMetrics() { /* V11.2 로직 */ const sVal = document.getElementById('up-start').value; const eVal = document.getElementById('up-end').value; if(!sVal || !eVal) return; const start = new Date(sVal); const end = new Date(eVal); const today = new Date(); const diffTime = today - start; let usedDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1; if(usedDays < 1) usedDays = 1; const remainingTime = end - today; let totalRemain = Math.floor(remainingTime / (1000 * 60 * 60 * 24)) + 1; if(totalRemain < 0) totalRemain = 0; const serviceDays = Number(document.getElementById('up-service-days').value || 0); const remainingService = Math.max(0, serviceDays - usedDays); const billableRemain = Math.max(0, totalRemain - remainingService); const badge = document.getElementById('up-mode-badge'); const box = document.getElementById('up-status-box'); const discountArea = document.getElementById('up-discount-area'); box.style.display = 'block'; document.getElementById('up-billable-days').dataset.mode = 'standard'; if (usedDays <= 30) { badge.className = 'mode-badge mode-month'; badge.innerText = '📅 가입 1개월 이내 (단순 차액)'; document.getElementById('up-billable-days').dataset.mode = 'month'; discountArea.style.display = 'none'; } else { badge.className = 'mode-badge mode-standard'; badge.innerText = '⚡ 일반 업그레이드 (365일 기준)'; if (usedDays < 180) { discountArea.style.display = 'block'; } else { discountArea.style.display = 'none'; document.getElementById('chk-up-discount').checked = false; } } document.getElementById('up-used-days').innerText = usedDays; document.getElementById('up-total-remain').innerText = totalRemain; document.getElementById('up-billable-days').innerText = billableRemain; document.getElementById('up-billable-days').dataset.days = billableRemain; }
+    function calcUpgradeCost() { /* V11.2 로직 */ const mode = document.getElementById('up-billable-days').dataset.mode; const billableDays = Number(document.getElementById('up-billable-days').dataset.days || 0); let newPrice = Number(document.getElementById('up-new-price').value || 0); const oldPrice = Number(document.getElementById('up-paid').value || 0); if(newPrice === 0) { alert("신규 상품 금액을 입력해주세요."); return; } let finalCost = 0; let methodText = ""; let calcDetail = document.getElementById('up-calc-detail'); if (mode === 'month') { finalCost = newPrice - oldPrice; methodText = "가입 1개월 이내이므로 <strong>단순 차액(기간 연장)</strong>으로 계산되었습니다."; calcDetail.style.display = 'none'; } else { const isDiscount = document.getElementById('chk-up-discount').checked; if (isDiscount) { newPrice = newPrice * 0.8; } const valA = newPrice / 365; const valB = oldPrice / 365; const diffPerDay = valA - valB; finalCost = Math.floor(diffPerDay * billableDays); finalCost = Math.floor(finalCost / 10) * 10; let discountMsg = isDiscount ? "(20% 할인가) " : ""; methodText = `365일 기준 일할 차액 방식${discountMsg}이 적용되었습니다.<br>(무료 기간은 가입 초기에 우선 소진)`; calcDetail.style.display = 'block'; document.getElementById('val-a').innerText = Math.floor(valA); document.getElementById('val-b').innerText = Math.floor(valB); document.getElementById('val-days').innerText = billableDays; document.getElementById('val-res').innerText = fmtNum(finalCost); } if (finalCost < 0) finalCost = 0; document.getElementById('res-up-final').innerText = fmtNum(finalCost) + '원'; document.getElementById('txt-up-final').innerText = fmtNum(finalCost) + '원'; document.getElementById('txt-up-method').innerHTML = methodText; document.getElementById('res-upgrade').style.display = 'block'; }
+
+    // [V15] 특수(복합) 환불 로직 수정 - 수동 보정 기능
+    function toggleSpOpt(code) {
+        const chk = document.getElementById('sp-chk-' + code);
+        const grp = document.getElementById('sp-grp-' + code);
+        const detail = document.querySelector('#sp-grp-' + code + ' .option-detail');
+        
+        if (chk.checked) {
+            grp.classList.add('active');
+            detail.style.display = 'block';
+        } else {
+            grp.classList.remove('active');
+            detail.style.display = 'none';
+            document.getElementById('sp-pay-' + code).value = '';
+        }
+    }
+
+    // [V17] 특수 환불 로직 날짜도 동일하게 변경 (Cycle)
+    function calculateCycleMonths(start, end) {
+        let monthCount = 1; 
+        let curStart = new Date(start); 
+        let finalMonths = 0;
+        while(true) {
+            let tempEnd = new Date(curStart); 
+            tempEnd.setMonth(tempEnd.getMonth() + 1); 
+            // tempEnd.setDate(tempEnd.getDate() - 1); // 삭제됨
+            if (end <= tempEnd) { finalMonths = monthCount; break; } 
+            else { monthCount++; curStart = new Date(tempEnd); curStart.setDate(curStart.getDate() + 1); if(monthCount > 36) break; }
+        }
+        return finalMonths;
+    }
+
+    // 1. 날짜 변경 시 -> 추천 개월수 계산하여 인풋에 집어넣기
+    function runSpecialSim() {
+        const sVal = document.getElementById('sp-start').value;
+        const changeVal = document.getElementById('sp-change').value;
+        const eVal = document.getElementById('sp-end').value;
+        
+        // [V18] 휴회 일수 가져오기
+        const pauseA = Number(document.getElementById('sp-pause-a').value || 0);
+        const pauseB = Number(document.getElementById('sp-pause-b').value || 0);
+        
+        if(!sVal || !changeVal || !eVal) return;
+
+        const startDate = new Date(sVal);
+        const changeDate = new Date(changeVal);
+        const endDate = new Date(eVal);
+
+        // A기간 종료일 (변경일 전날)
+        const endA = new Date(changeDate);
+        endA.setDate(endA.getDate() - 1);
+        
+        // [V18] A구간 실질 종료일 계산 (휴회 차감)
+        const effectiveEndA = new Date(endA);
+        effectiveEndA.setDate(effectiveEndA.getDate() - pauseA);
+
+        let monthsA = 0;
+        if (effectiveEndA >= startDate) { monthsA = calculateCycleMonths(startDate, effectiveEndA); }
+
+        // [V18] B구간 실질 종료일 계산 (휴회 차감)
+        const effectiveEndB = new Date(endDate);
+        effectiveEndB.setDate(effectiveEndB.getDate() - pauseB);
+
+        let monthsB = 0;
+        if (effectiveEndB >= changeDate) { monthsB = calculateCycleMonths(changeDate, effectiveEndB); }
+
+        document.getElementById('sp-months-a').value = monthsA;
+        document.getElementById('sp-months-b').value = monthsB;
+        
+        // [V17] 옵션 월 = 전체 기간 (Start ~ End) 통합 계산
+        // [V18] 옵션 기간도 총 휴회(A+B)만큼 차감
+        const totalPause = pauseA + pauseB;
+        const effectiveTotalEnd = new Date(endDate);
+        effectiveTotalEnd.setDate(effectiveTotalEnd.getDate() - totalPause);
+        
+        const totalOptionMonths = calculateCycleMonths(startDate, effectiveTotalEnd);
+        document.getElementById('sp-months-opt').value = totalOptionMonths;
+
+        calcSpecialCost();
+    }
+    
+    // [V15] A, B 월 변경 시 옵션 월 동기화 함수
+    function syncOptionMonths() {
+        // [V17] 옵션 월 자동 동기화 로직 제거 (독립성 보장)
+        // 만약 A+B 합산으로 옵션 월을 강제하고 싶다면 아래 주석 해제
+        /*
+        const monthsA = Number(document.getElementById('sp-months-a').value);
+        const monthsB = Number(document.getElementById('sp-months-b').value);
+        document.getElementById('sp-months-opt').value = monthsA + monthsB;
+        */
+        calcSpecialCost();
+    }
+
+    // 2. 비용 계산
+    function calcSpecialCost() {
+        const monthsA = Number(document.getElementById('sp-months-a').value);
+        const monthsB = Number(document.getElementById('sp-months-b').value);
+        const monthsOpt = Number(document.getElementById('sp-months-opt').value);
+
+        const payA = Number(document.getElementById('sp-pay-a').value || 0);
+        const payB = Number(document.getElementById('sp-pay-b').value || 0);
+        
+        const typeA = document.getElementById('sp-type-a').value;
+        const typeB = document.getElementById('sp-type-b').value;
+        const normPriceA = REFUND_PRESETS[typeA];
+        const normPriceB = REFUND_PRESETS[typeB];
+
+        const deductA = normPriceA * monthsA;
+        const deductB = normPriceB * monthsB;
+        
+        let optPaid = 0;
+        let optDeduct = 0;
+        
+        ['lk', 'gf', 'un'].forEach(code => {
+            if(document.getElementById('sp-chk-'+code).checked) {
+                const p = Number(document.getElementById('sp-pay-'+code).value || 0);
+                const n = Number(document.getElementById('sp-norm-'+code).value || 0);
+                optPaid += p;
+                optDeduct += (n * monthsOpt);
+            }
+        });
+
+        let extraDeduct = 0;
+        if(document.getElementById('sp-chk-deduct-gift').checked) extraDeduct += 50000;
+        if(document.getElementById('sp-chk-deduct-ot').checked) extraDeduct += 50000;
+
+        const totalPaid = payA + payB + optPaid;
+        const penalty = totalPaid * 0.1;
+
+        let finalRefund = totalPaid - penalty - deductA - deductB - optDeduct - extraDeduct;
+        if (finalRefund < 0) finalRefund = 0;
+
+        document.getElementById('sp-total-paid').innerText = fmtNum(totalPaid) + '원';
+        document.getElementById('sp-penalty').innerText = '-' + fmtNum(penalty) + '원';
+        
+        document.getElementById('sp-deduct-a').innerText = '-' + fmtNum(deductA) + '원';
+        document.getElementById('sp-deduct-b').innerText = '-' + fmtNum(deductB) + '원';
+        
+        if (extraDeduct > 0) {
+            document.getElementById('sp-extra-row').style.display = 'flex';
+            document.getElementById('sp-extra-deduct').innerText = '-' + fmtNum(extraDeduct) + '원';
+        } else {
+            document.getElementById('sp-extra-row').style.display = 'none';
+        }
+
+        if (optPaid > 0) {
+            document.getElementById('sp-opt-row').style.display = 'flex';
+            document.getElementById('sp-opt-deduct').innerText = '-' + fmtNum(optDeduct) + '원';
+        } else {
+            document.getElementById('sp-opt-row').style.display = 'none';
+        }
+        
+        document.getElementById('sp-final').innerText = fmtNum(finalRefund) + '원';
+        document.getElementById('res-special').style.display = 'block';
+    }
+</script>
+
+</body>
+</html>
