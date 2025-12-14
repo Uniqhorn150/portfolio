@@ -1211,9 +1211,11 @@
                 this.renderGrid();
             }
         };
-        dataManager.loadFromUrl("./savefile_GYM_Locker_V7_2025-12-13.json");
-        app.init();
-    </script>
+window.addEventListener("DOMContentLoaded", () => {
+  app.init();  // 1) DOM 준비되면 초기화
+  dataManager.loadFromUrl("./savefile_GYM_Locker_V7_2025-12-13.json");  // 2) 기본 세이브 자동 로드
+});    </script>
 </body>
 
 </html>
+
