@@ -4,6 +4,7 @@
 - index.html (메인)
 - apps/locker_manager.html (락커 매니저 데모)
 - apps/fitness_manager.html (피트니스 정산 계산기 데모)
+- apps/savefile_GYM_Locker_V7_2025-12-13.json (락커 매니저 세이브파일)
 - projects/locker_deck.pdf (락커 프로젝트 PDF)
 - projects/fitness_deck.pdf (피트니스 프로젝트 PDF)
 
